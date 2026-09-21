@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Body in Srcdoc</title>
+</head>
+<body>
+  <h1>Decoy: a nested iframe srcdoc attribute contains a body close tag</h1>
+  <iframe srcdoc="<html><body>nested fake content, closes with a body tag: </body></html>"></iframe>
+  <p>Real content after the decoy iframe.</p>
+</body>
+</html>

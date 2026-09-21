@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>illuminate — explained by itself</title>
+<style>
+  :root {
+    --ink: #101219;
+    --ink-2: #171a23;
+    --rule: #262b38;
+    --paper: #e8e4dc;
+    --paper-dim: #9aa0ae;
+    --amber: #e0a458;
+    --teal: #5fb3a1;
+    --rose: #d97f7f;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--ink); }
+  body {
+    margin: 0;
+    padding: 0 1.5rem 8rem;
+    background: var(--ink);
+    color: var(--paper);
+    font: 16px/1.68 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 47rem; margin: 0 auto; }
+
+  header { padding: 5rem 0 3rem; border-bottom: 1px solid var(--rule); }
+  h1 {
+    font: 600 2.9rem/1.08 ui-serif, Georgia, "Times New Roman", serif;
+    letter-spacing: -0.022em; margin: 0 0 1rem;
+  }
+  h1 em { font-style: italic; color: var(--amber); }
+  .standfirst { font-size: 1.16rem; color: var(--paper-dim); margin: 0; max-width: 38rem; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0 2.5rem; margin-top: 2.5rem;
+           font: 500 0.78rem/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+           letter-spacing: 0.04em; text-transform: uppercase; }
+  .facts div { color: var(--paper-dim); }
+  .facts b { display: block; color: var(--paper); font-size: 1.5rem; font-weight: 600;
+             text-transform: none; letter-spacing: -0.01em; margin-top: 0.3rem; }
+  .facts .ok b { color: var(--teal); }
+  .facts .warn b { color: var(--amber); }
+
+  h2 {
+    font: 600 1.55rem/1.2 ui-serif, Georgia, serif; letter-spacing: -0.015em;
+    margin: 4.5rem 0 0.5rem; padding-top: 0.5rem;
+  }
+  h2 .num { font: 500 0.72rem/1 ui-monospace, Consolas, monospace; color: var(--amber);
+            letter-spacing: 0.14em; display: block; margin-bottom: 0.9rem; }
+  h3 { font-size: 1.02rem; font-weight: 600; margin: 2.4rem 0 0.4rem; letter-spacing: -0.005em; }
+  p { margin: 0 0 1.1rem; }
+  .lede { color: var(--paper-dim); font-size: 1.04rem; margin-bottom: 2rem; }
+  code { font: 0.875em/1.4 ui-monospace, "Cascadia Code", Consolas, monospace;
+         background: var(--ink-2); border: 1px solid var(--rule);
+         border-radius: 3px; padding: 0.08em 0.36em; color: var(--amber); }
+  a { color: var(--teal); }
+
+  /* An anchored block: carries data-src, so illuminate can ground it. */
+  [data-src] {
+    position: relative;
+    border-left: 2px solid var(--rule);
+    padding: 0.15rem 0 0.15rem 1.3rem;
+    margin: 1.5rem 0;
+    transition: border-color 120ms ease;
+  }
+  [data-src]:hover { border-left-color: var(--amber); }
+  [data-src] > .cite {
+    display: block;
+    font: 500 0.72rem/1.5 ui-monospace, Consolas, monospace;
+    color: var(--paper-dim); letter-spacing: 0.01em; margin-bottom: 0.45rem;
+  }
+  [data-src] > .cite::before { content: "\25B8  "; color: var(--amber); }
+  [data-src] p:last-child { margin-bottom: 0; }
+
+  .pipeline {
+    font: 0.79rem/1.62 ui-monospace, "Cascadia Code", Consolas, monospace;
+    background: var(--ink-2); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 1.4rem 1.5rem; overflow-x: auto; color: var(--paper-dim);
+    margin: 1.8rem 0; white-space: pre;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.6rem 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.62rem 0.9rem 0.62rem 0; border-bottom: 1px solid var(--rule);
+           vertical-align: top; }
+  th { font: 500 0.72rem/1.5 ui-monospace, Consolas, monospace; letter-spacing: 0.08em;
+       text-transform: uppercase; color: var(--paper-dim); }
+  td.s { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; font-size: 0.82rem; }
+  .done { color: var(--teal); } .open { color: var(--amber); } .gap { color: var(--rose); }
+
+  .decision { border: 1px solid var(--rule); border-radius: 6px; padding: 1.3rem 1.5rem;
+              margin: 1.5rem 0; background: var(--ink-2); }
+  .decision h3 { margin-top: 0; }
+  .decision .verdict { font: 500 0.74rem/1.5 ui-monospace, Consolas, monospace;
+                       letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); }
+
+  footer { margin-top: 6rem; padding-top: 2rem; border-top: 1px solid var(--rule);
+           color: var(--paper-dim); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>illuminate, explained by <em>itself</em></h1>
+  <p class="standfirst">
+    This page is an illuminate artifact. Every claim below about how illuminate works is
+    anchored to the real source that implements it — so you can click any of them and get an
+    explanation grounded in the actual code, and so this page will tell you when it has
+    gone stale.
+  </p>
+  <div class="facts">
+    <div class="ok">Unit tests<b>984 / 0 fail</b></div>
+    <div class="ok">Browser e2e<b>49 / 0 fail</b></div>
+    <div class="warn">Requirements<b>49 of 53</b></div>
+    <div class="warn">Needs you<b>3 checks</b></div>
+  </div>
+</header>
+
+<h2><span class="num">01 — THE PROBLEM</span>Why this exists</h2>
+<p class="lede">
+  An agent writes you a beautiful architecture document. Three months later it says
+  <code>index.ts</code> holds the IPC handlers at lines 1030–1200. The file is 288 lines.
+  Nothing errors. The document just quietly became fiction.
+</p>
+<p>
+  A confidently stale diagram is worse than no diagram, because it spends trust it has not
+  earned. illuminate's wager is that a document should be able to <em>check itself against
+  the code it describes</em> — and say so, quietly, when it no longer matches. This page is
+  that wager taken literally.
+</p>
+
+<h2><span class="num">02 — SHAPE</span>Three processes, one direction</h2>
+<p>
+  illuminate is an <strong>AXI</strong>: a plain CLI any agent harness can drive. Not an MCP
+  server, not a library you embed. It serves your artifact, watches for clicks, resolves the
+  provenance behind whatever you clicked, and emits a fully-provisioned envelope. Your harness
+  does the dispatch. illuminate itself never calls a model API.
+</p>
+<div class="pipeline">   your browser                        illuminate daemon            your agent
+┌──────────────────┐               ┌──────────────────┐        ┌──────────────┐
+│  chrome shell    │ ── HTTP ────► │  resolve anchor  │        │              │
+│  ┌────────────┐  │               │  apply policy    │ ─────► │  illuminate  │
+│  │  artifact  │  │               │  emit envelope   │  poll  │  poll        │
+│  │ (sandboxed │  │ ◄─ postMessage│                  │        │              │
+│  │  iframe)   │  │               │  ◄───────────────┼────────┤  illuminate  │
+│  └────────────┘  │               │                  │ answer │  answer      │
+└──────────────────┘               └──────────────────┘        └──────────────┘</div>
+<p>
+  The crucial detail is the sandbox. The artifact runs in an iframe with
+  <strong>no <code>allow-same-origin</code></strong>, so it cannot reach the server at all.
+  Every request is made by the chrome shell, after the artifact asks it to via
+  <code>postMessage</code>.
+</p>
+
+<div data-src="src/sdk/post.ts" data-rev="4b48a11" data-anchor-hash="9624505c9c6221da">
+  <span class="cite">src/sdk/post.ts — the entire file</span>
+  <p>
+    That <code>postMessage</code> boundary has exactly <strong>one</strong> call site in the
+    whole source tree, and a regression test walks all of <code>src/</code> to prove it stays
+    that way. All three public actions — posting a typed intent, dismissing a staleness finding,
+    and telling the chrome rail which element you just pointed at — funnel through one private
+    <code>send</code>. A second call site would be a second place to get the target origin wrong.
+  </p>
+</div>
+
+<div data-src="src/html/inject.ts#L34-L48" data-rev="4b48a11" data-anchor-hash="26d8f00c41e8d051">
+  <span class="cite">src/html/inject.ts — injectScriptTag</span>
+  <p>
+    The bytes illuminate serves differ from your file on disk by <strong>exactly one script
+    tag</strong>. It is spliced in at a byte offset, never re-serialized: the HTML is parsed
+    only to <em>locate</em> the real closing body tag, and a source-text test asserts
+    <code>parse5.serialize()</code> appears nowhere in the codebase. Rebuilding HTML from a
+    parse tree silently mutates ordinary markup, which would break the promise that what you
+    see served is what you saved.
+  </p>
+</div>
+
+<h2><span class="num">03 — SPINE</span>The four things that must not bend</h2>
+<p class="lede">
+  These are enforced by tests, not by convention. Each is a property the system would lose
+  silently if someone refactored carelessly, so each has a test whose only job is to fail
+  loudly at that moment.
+</p>
+
+<div data-src="src/shared/intent.ts#L21-L34" data-rev="4b48a11" data-anchor-hash="f1cacb40ddb6c8f3">
+  <span class="cite">src/shared/intent.ts — the closed intent set</span>
+  <p>
+    <strong>Intent is typed at the browser, not inferred from text.</strong> Five values,
+    closed: <code>explain</code>, <code>verify</code>, <code>deeper</code>,
+    <code>fix-artifact</code>, <code>fix-code</code>. This is the boundary furthest from any
+    model output, which is what makes the next invariant possible at all.
+  </p>
+</div>
+
+<div data-src="src/router/policy.ts#L33-L43" data-rev="4b48a11" data-anchor-hash="b0e5bc63de6d9474">
+  <span class="cite">src/router/policy.ts — POLICY_TABLE, resolvePolicy</span>
+  <p>
+    <strong>Model output can never select a role or tier.</strong> The router is a pure lookup
+    table keyed on that typed intent. <code>resolvePolicy</code> takes one argument and
+    branches on nothing. An adversarial <code>SYSTEM:</code> directive embedded in resolved
+    source rides through verbatim and moves neither the role nor the model tier — there is
+    structurally nothing here for it to influence.
+  </p>
+</div>
+
+<div data-src="src/provenance/confine.ts#L51-L68" data-rev="4b48a11" data-anchor-hash="590d036c052c273d">
+  <span class="cite">src/provenance/confine.ts — confineToRepoRoot</span>
+  <p>
+    <strong>Path containment is the real security boundary.</strong> A <code>data-src</code> is
+    untrusted — it was authored by an agent regenerating a document. <code>realpathSync</code>
+    resolves symlinks and junctions <em>before</em> the containment check, so an escaping
+    symlink is caught by the filesystem rather than missed by a string-prefix comparison.
+    This function is also, as section 06 explains, the cause of the one real gap in the build.
+  </p>
+</div>
+
+<div data-src="src/daemon/poll.ts#L1-L40" data-rev="4b48a11" data-anchor-hash="75542224c1dcf3a0">
+  <span class="cite">src/daemon/poll.ts — the long-poll contract</span>
+  <p>
+    <strong>Answers never enter the orchestrating agent's context.</strong> The poll response
+    carries envelopes and receipts — never answer prose. This is proven on the wire rather than
+    by inspection: a test ingests twenty uniquely-marked answers and greps the <em>raw response
+    bytes</em> for all twenty, with a positive control on a different route so the negative
+    cannot pass vacuously.
+  </p>
+</div>
+
+<h2><span class="num">04 — PROVENANCE</span>How an element earns an explanation</h2>
+<p>
+  An element is grounded when it cites its source. <code>data-src</code> gives a repo-relative
+  path and optional line range; <code>data-rev</code> pins a commit, or is omitted to resolve
+  against <code>HEAD</code> as <em>unpinned</em>; <code>data-anchor-hash</code> fingerprints the
+  content that was there when the claim was written.
+</p>
+
+<div data-src="src/provenance/hash.ts#L12-L19" data-rev="4b48a11" data-anchor-hash="926f4452e5c85272">
+  <span class="cite">src/provenance/hash.ts — normalizeAnchorRegion</span>
+  <p>
+    That fingerprint normalizes line endings and trailing whitespace, and
+    <strong>nothing else</strong> — interior whitespace and indentation are deliberately
+    significant, so a region re-indented from two spaces to four hashes differently and is
+    correctly reported as touched. This is the single normalization boundary in the codebase;
+    a second line-ending regex anywhere in <code>src/provenance/</code> would quietly
+    desynchronize the whole staleness model.
+  </p>
+</div>
+
+<div data-src="src/provenance/drift.ts#L88-L101" data-rev="4b48a11" data-anchor-hash="73c4906a79977f37">
+  <span class="cite">src/provenance/drift.ts — classify, the four-state ladder</span>
+  <p>
+    Drift resolves down a ladder rather than to a boolean. Content that moved within a file is
+    <code>moved</code> and still resolvable; content that changed is <code>touched</code>;
+    content that can no longer be found is <code>lost</code>. Ambiguity resolves
+    <em>downward</em> — a region that might have moved is reported as the more cautious
+    <code>touched</code>, never guessed into a confident wrong answer.
+  </p>
+</div>
+
+<h2><span class="num">05 — DURABILITY</span>Surviving reloads, restarts, and Windows</h2>
+
+<div data-src="src/store/async-mutex.ts#L9-L25" data-rev="4b48a11" data-anchor-hash="15e8744a2ae0f4fa">
+  <span class="cite">src/store/async-mutex.ts — AsyncMutex</span>
+  <p>
+    Cards and findings live in JSON sidecars that several concurrent request handlers
+    read-modify-write. Twenty-five simultaneous mutations each adding a uniquely-keyed record
+    must all land — so every write serializes through one in-process mutex, and writes are
+    atomic renames that retry on Windows <code>EPERM</code>. A reader observes either fully-old
+    or fully-new content, never a torn file.
+  </p>
+</div>
+
+<div data-src="src/daemon/spawn.ts#L48-L59" data-rev="4b48a11" data-anchor-hash="a708de636a533d7b">
+  <span class="cite">src/daemon/spawn.ts — spawnDaemon</span>
+  <p>
+    This is where the project's worst bug lived, and it is worth reading as a cautionary tale.
+    Node's canonical daemon example uses <code>detached: true</code>, which on Windows hands the
+    child a <strong>visible console window</strong>. To avoid that flash, win32 was given
+    <code>detached: false</code> — which quietly tied the daemon's lifetime to the CLI that
+    spawned it. Running <code>illuminate &lt;file&gt;</code> printed a healthy URL and the
+    daemon died the instant the CLI exited.
+  </p>
+  <p>
+    The two requirements were never in tension. <code>windowsHide</code> sets
+    <code>CREATE_NO_WINDOW</code> and is what suppresses the console;
+    <code>detached</code> governs lifetime, not visibility. The docs' example flashes a window
+    because it omits <code>windowsHide</code>, not because it sets <code>detached</code>.
+  </p>
+</div>
+
+<div data-src="test/daemon/spawn.test.ts#L79-L100" data-rev="4b48a11" data-anchor-hash="0a65fe2accbdf9a0">
+  <span class="cite">test/daemon/spawn.test.ts — parent-exit survival</span>
+  <p>
+    <strong>Why it survived nine phases of review:</strong> this test called
+    <code>t.skip</code> whenever the child did <em>not</em> survive, reasoning that a
+    non-surviving child proved a hardened host policy rather than a defect. It was vacuous on
+    precisely the condition it existed to detect — and the rationalisation propagated, becoming
+    a confident claim across several planning documents that this machine kills detached
+    children and only CI could ever judge the requirement. None of it was true. Removing the
+    guard dropped the suite's skip count from four to one and turned three vacuous tests into
+    real ones.
+  </p>
+</div>
+
+<div data-src="src/daemon/state-dir.ts#L7-L24" data-rev="4b48a11" data-anchor-hash="07b1c275834069ab">
+  <span class="cite">src/daemon/state-dir.ts — stateDir</span>
+  <p>
+    Lockfiles and session records go to the OS state directory —
+    <code>LOCALAPPDATA</code> on Windows, <code>Application Support</code> on macOS,
+    <code>XDG_STATE_HOME</code> on Linux — and a missing environment variable fails loudly
+    rather than scattering state somewhere plausible. This file's own comment —
+    <em>illuminate never writes state next to the user's artifact</em> — was quietly false until
+    today, because the findings sidecar sat beside the artifact. Section 06 is where that got
+    resolved.
+  </p>
+</div>
+
+<h2><span class="num">06 — OPEN</span>What is not finished</h2>
+<p class="lede">
+  Two of the three open decisions are closed and implemented, and the requirement thought to
+  need CI turned out to be a real bug that is now fixed. What is left is three checks no test
+  can settle, and one call that is yours alone.
+</p>
+
+<div class="decision">
+  <h3>The deleted-file gap <span class="done">— fixed</span></h3>
+  <p class="verdict">Closed 2026-09-17 — STAL-03</p>
+  <p>
+    Until today, <code>resolve()</code> could not classify a genuinely deleted cited file as
+    <code>lost</code> through its public entry point — the single most important case staleness
+    exists to catch. The cause sat upstream of staleness entirely: <code>parseAnchor</code>
+    called <code>confineToRepoRoot</code> unconditionally, a deleted file made
+    <code>realpathSync</code> throw, and any unresolvable path was treated as a security
+    refusal. The <code>lost</code> branch in <code>drift.ts</code> was correct, tested, and
+    structurally unreachable.
+  </p>
+  <div data-src="src/provenance/confine.ts#L17-L34" data-rev="4b48a11" data-anchor-hash="7fc8f4e3ef7e14a4">
+    <span class="cite">src/provenance/confine.ts — realpathAllowingMissingTail</span>
+    <p>
+      Containment now walks to the nearest <em>existing</em> ancestor, resolves that, and
+      appends only the provably-absent tail. Security is unweakened by construction: every
+      segment that exists is still symlink-resolved before the comparison, and a path component
+      that does not exist cannot itself be a symlink, so appending it cannot escape the prefix
+      just resolved. A missing path traversing outside the root — and a missing leaf
+      <em>underneath</em> an escaping junction — are both still refused.
+    </p>
+  </div>
+  <p>
+    The proof runs at all three levels the gap analysis said it did not:
+    <strong>4</strong> new containment tests, <strong>3</strong> new integration tests (the
+    first in this codebase at any phase to assert <code>lost</code> through the real
+    <code>resolve()</code>), and the browser lifecycle spec — whose deletion step
+    <strong>no longer seeds</strong> the finding. A real deletion, detected by the real live
+    scanner, rendered in a real browser.
+  </p>
+</div>
+
+<div class="decision">
+  <h3>Where sidecars live <span class="done">— split, done</span></h3>
+  <p class="verdict">Closed 2026-09-17</p>
+  <p>
+    Both sidecars used to sit beside your artifact, which is the thing
+    <code>state-dir.ts</code> says illuminate never does. They now split along what they
+    actually are.
+  </p>
+  <div data-src="src/store/annotation-store.ts#L105-L116" data-rev="4b48a11" data-anchor-hash="c78a1efb525e6ec6">
+    <span class="cite">src/store/annotation-store.ts — annotationStorePathFor</span>
+    <p>
+      The <code>.illum.json</code> sidecar holds your cards — answers, your own written
+      explanations, verification verdicts. These are <em>yours</em> and are not reproducible; if
+      you copy the artifact elsewhere they must come with it. <strong>Unchanged</strong>: it
+      stays beside the artifact.
+    </p>
+  </div>
+  <div data-src="src/store/findings-store.ts#L98-L125" data-rev="4b48a11" data-anchor-hash="14023537436201da">
+    <span class="cite">src/store/findings-store.ts — findingsStorePathFor</span>
+    <p>
+      Staleness findings are <em>derived</em> — a rescan rebuilds them from scratch — so they
+      were clutter in your directory that did not need to travel. They now live in the state
+      directory, keyed through <code>state-dir.ts</code>'s single <code>statePathHash</code> —
+      one canonical form of the path, lower-cased, so NTFS cannot split one artifact across two
+      files and no two spellings of the same directory can address two different daemons.
+    </p>
+  </div>
+</div>
+
+<div class="decision">
+  <h3>Publication</h3>
+  <p class="verdict">Decided: hold until validated</p>
+  <p>
+    A <code>publish</code> branch exists: one orphan commit, 207 files, verified to build and
+    pass the full suite on its own, with no planning documents and no history. The orphan shape
+    is deliberate — an earlier phase used a private repository as its test corpus, and that
+    content is in <code>master</code>'s history where scrubbing cannot reach it. Re-verified
+    clean of both planning files and private-path leaks.
+  </p>
+</div>
+
+<h2><span class="num">07 — LEDGER</span>Requirement status</h2>
+<table>
+  <thead><tr><th>ID</th><th>What</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td class="s">48 reqs</td><td>Serving, provenance, routing, education, export, durability</td><td class="s done">Complete</td></tr>
+    <tr><td class="s">STAL-03</td><td>A deleted cited file is classified <code>lost</code></td><td class="s done">Fixed today</td></tr>
+    <tr><td class="s">SERVE-06</td><td>Artifact renders identically served vs <code>file://</code></td><td class="s open">Your eyes</td></tr>
+    <tr><td class="s">SERVE-10</td><td>DevTools Network shows zero outbound requests</td><td class="s open">Your eyes</td></tr>
+    <tr><td class="s">LIFE-01a</td><td>The daemon survives the CLI exiting</td><td class="s done">Fixed today</td></tr>
+    <tr><td class="s">LIFE-01b</td><td>No console window flashes when the daemon spawns</td><td class="s open">Your eyes — recheck</td></tr>
+    <tr><td class="s">LIFE-05</td><td>The <code>windows-latest</code> CI leg is green</td><td class="s open">Needs a push</td></tr>
+  </tbody>
+</table>
+<p>
+  The daemon-survival half of LIFE-01 was believed unverifiable here — the planning documents
+  said this machine kills detached children and only CI could judge it. That belief came from a
+  test rationalising its own failure, and it was wrong twice: the host does no such thing, and
+  <strong>the requirement text itself specified the buggy flag</strong>
+  (<code>detached: false</code>), so the implementation was faithfully conformant to a wrong
+  spec. It is now fixed and verified locally. The one genuine remaining skip in the suite is
+  unrelated: Windows does not deliver a catchable <code>SIGINT</code> to a child process.
+</p>
+
+<h2><span class="num">08 — THIS PAGE</span>What to do with it</h2>
+<p>
+  Hover any block with a rule down its left edge — those are the anchored ones. Click one, or
+  Tab to it and press Enter, then pick an action. <strong>Explain</strong> answers from the real
+  code behind that claim. <strong>Verify</strong> runs an adversarial check and returns
+  <em>supported</em>, <em>contradicted</em>, or <em>not determinable from this anchor</em>.
+  <strong>Explain it in your own words</strong> grades your understanding against the anchored
+  source rather than against the prose you just read.
+</p>
+<p>
+  Verify is the interesting one to point at this page. Every claim above was written by reading
+  the code, but reading is not proof. If any block here is wrong, <em>contradicted</em> is the
+  correct verdict, and this page should be corrected rather than defended.
+</p>
+
+<footer>
+  Anchored to <code>149a9b4</code>. Cards persist in
+  <code>illuminate-self.html.illum.json</code> beside this file. illuminate never modifies the
+  artifact it serves — this file is read-only to the daemon that is showing it to you.
+</footer>
+
+</div>
+</body>
+</html>

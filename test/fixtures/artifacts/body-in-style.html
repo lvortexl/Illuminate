@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Body in Style</title>
+</head>
+<body>
+  <h1>Decoy: a style rule contains a body close tag as a string</h1>
+  <style>
+    .decoy::before { content: "</body>"; }
+  </style>
+  <p>Real content after the decoy style block.</p>
+</body>
+</html>

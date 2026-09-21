@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Body in Script</title>
+</head>
+<body>
+  <h1>Decoy: a closing body tag string lives inside a script below</h1>
+  <script>
+    const s = "</body>";
+    console.log("decoy handled, s.length =", s.length);
+  </script>
+  <p>Real content after the decoy script.</p>
+</body>
+</html>

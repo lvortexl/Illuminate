@@ -1,0 +1,61 @@
+{
+  "name": "illuminate-axi",
+  "version": "0.1.0",
+  "description": "HTML artifacts you can point at. Review and learn from agent-generated artifacts, grounded in real source.",
+  "type": "module",
+  "bin": {
+    "illuminate": "dist/cli.mjs",
+    "illum": "dist/cli.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser.json",
+    "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
+    "test": "node --test --test-concurrency=1",
+    "test:browser": "playwright test",
+    "lint": "eslint .",
+    "generate:skill": "node scripts/generate-skill.mjs",
+    "verify:skill": "node scripts/generate-skill.mjs --check"
+  },
+  "keywords": [
+    "axi",
+    "agent",
+    "cli",
+    "html",
+    "review",
+    "provenance",
+    "education"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.13.4",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.10.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
+  },
+  "dependencies": {
+    "open": "^11.0.2",
+    "parse5": "^8.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lvortexl/Illuminate.git"
+  },
+  "homepage": "https://github.com/lvortexl/Illuminate#readme",
+  "bugs": {
+    "url": "https://github.com/lvortexl/Illuminate/issues"
+  }
+}

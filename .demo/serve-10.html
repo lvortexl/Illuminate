@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SERVE-10 — how to check it, and what is already proven</title>
+<style>
+  :root {
+    --ink: #101219; --ink-2: #171a23; --rule: #262b38; --paper: #e8e4dc;
+    --paper-dim: #9aa0ae; --amber: #e0a458; --teal: #5fb3a1; --rose: #d97f7f;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--ink); }
+  body {
+    margin: 0; padding: 0 1.5rem 8rem; background: var(--ink); color: var(--paper);
+    font: 16px/1.68 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 47rem; margin: 0 auto; }
+  header { padding: 5rem 0 3rem; border-bottom: 1px solid var(--rule); }
+  h1 { font: 600 2.6rem/1.1 ui-serif, Georgia, serif; letter-spacing: -0.022em; margin: 0 0 1rem; }
+  h1 em { font-style: italic; color: var(--amber); }
+  .standfirst { font-size: 1.14rem; color: var(--paper-dim); margin: 0; max-width: 38rem; }
+  .facts { display: flex; flex-wrap: wrap; gap: 0 2.5rem; margin-top: 2.5rem;
+           font: 500 0.78rem/1.5 ui-monospace, Consolas, monospace;
+           letter-spacing: 0.04em; text-transform: uppercase; }
+  .facts div { color: var(--paper-dim); }
+  .facts b { display: block; color: var(--paper); font-size: 1.5rem; font-weight: 600;
+             text-transform: none; letter-spacing: -0.01em; margin-top: 0.3rem; }
+  .facts .ok b { color: var(--teal); }
+  .facts .warn b { color: var(--amber); }
+  h2 { font: 600 1.5rem/1.2 ui-serif, Georgia, serif; letter-spacing: -0.015em; margin: 4rem 0 0.5rem; }
+  h2 .num { font: 500 0.72rem/1 ui-monospace, Consolas, monospace; color: var(--amber);
+            letter-spacing: 0.14em; display: block; margin-bottom: 0.9rem; }
+  h3 { font-size: 1.02rem; font-weight: 600; margin: 2.2rem 0 0.4rem; }
+  p { margin: 0 0 1.1rem; }
+  .lede { color: var(--paper-dim); font-size: 1.04rem; margin-bottom: 2rem; }
+  code { font: 0.875em/1.4 ui-monospace, Consolas, monospace; background: var(--ink-2);
+         border: 1px solid var(--rule); border-radius: 3px; padding: 0.08em 0.36em; color: var(--amber); }
+  [data-src] { position: relative; border-left: 2px solid var(--rule);
+               padding: 0.15rem 0 0.15rem 1.3rem; margin: 1.5rem 0;
+               transition: border-color 120ms ease; }
+  [data-src]:hover { border-left-color: var(--amber); }
+  [data-src] > .cite { display: block; font: 500 0.72rem/1.5 ui-monospace, Consolas, monospace;
+                       color: var(--paper-dim); margin-bottom: 0.45rem; }
+  [data-src] > .cite::before { content: "\25B8  "; color: var(--amber); }
+  [data-src] p:last-child { margin-bottom: 0; }
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 1.6rem 0; }
+  .steps li { counter-increment: step; position: relative; padding: 0 0 1.1rem 2.6rem;
+              border-left: 1px solid var(--rule); margin-left: 0.6rem; }
+  .steps li::before {
+    content: counter(step); position: absolute; left: -0.85rem; top: 0;
+    width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    background: var(--ink-2); border: 1px solid var(--rule); color: var(--amber);
+    font: 500 0.75rem/1.6rem ui-monospace, Consolas, monospace; text-align: center;
+  }
+  .steps li:last-child { border-left-color: transparent; }
+  .term { font: 0.79rem/1.62 ui-monospace, Consolas, monospace; background: #050609;
+          border: 1px solid var(--rule); border-radius: 6px; padding: 1.1rem 1.3rem;
+          overflow-x: auto; color: var(--paper-dim); margin: 1.2rem 0; white-space: pre; }
+  .term b { color: var(--teal); font-weight: 500; }
+  .term i { color: var(--amber); font-style: normal; }
+  table { width: 100%; border-collapse: collapse; margin: 1.6rem 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.62rem 0.9rem 0.62rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font: 500 0.72rem/1.5 ui-monospace, Consolas, monospace; letter-spacing: 0.08em;
+       text-transform: uppercase; color: var(--paper-dim); }
+  td.s { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; font-size: 0.82rem; }
+  .done { color: var(--teal); } .open { color: var(--amber); }
+  .verdict { border: 1px solid var(--rule); border-radius: 6px; padding: 1.2rem 1.4rem;
+             margin: 1.5rem 0; background: var(--ink-2); }
+  .verdict h3 { margin-top: 0; }
+  .verdict .tag { font: 500 0.74rem/1.5 ui-monospace, Consolas, monospace;
+                  letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); }
+  footer { margin-top: 6rem; padding-top: 2rem; border-top: 1px solid var(--rule);
+           color: var(--paper-dim); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>SERVE-10: <em>nothing leaves the machine</em></h1>
+  <p class="standfirst">
+    The last check that needs your eyes. This page explains what the requirement actually
+    claims, what is already proven mechanically, what is left for you specifically, and the
+    exact four steps — so the check takes a minute rather than an investigation.
+  </p>
+  <div class="facts">
+    <div class="ok">Served, measured<b>0 external</b></div>
+    <div class="ok">Exported, measured<b>0 non-file</b></div>
+    <div class="warn">Your eyes add<b>the unknown</b></div>
+  </div>
+</header>
+
+<h2><span class="num">01 — THE CLAIM</span>What the requirement says</h2>
+
+<p class="lede">
+  "Neither the artifact nor the chrome makes an outbound network request; no CDN assets are
+  ever injected."
+</p>
+
+<p>
+  Two separate promises, and they fail in different ways. The first is about the
+  <strong>served</strong> session: while illuminate is running, every byte the browser asks for
+  comes from the local daemon. The second is about the <strong>exported</strong> file: once
+  illuminate is gone and you open the artifact from disk, it still renders completely, because
+  nothing in it points anywhere.
+</p>
+
+<p>
+  This matters because the whole product is pointed at private repositories. A single webfont
+  or analytics beacon means the paths, filenames and prose of your source have been handed to
+  somebody's log. There is no partial credit here.
+</p>
+
+<h2><span class="num">02 — ALREADY PROVEN</span>What you do not need to re-check</h2>
+
+<div data-src="e2e/export-standalone.spec.ts#L322-L330" data-rev="38304db" data-anchor-hash="3816a5ed518c35ca">
+  <span class="cite">e2e/export-standalone.spec.ts — the zero-request export proof</span>
+  <p>
+    A real Chromium opens the exported file over <code>file://</code> with the daemon
+    <em>stopped</em>, and every request the page makes is counted. This is the exported half of
+    the claim, run on every browser suite.
+  </p>
+</div>
+
+<div data-src="test/export/no-remote-refs.test.ts" data-rev="38304db" data-anchor-hash="c8908ee0bb7bc72f">
+  <span class="cite">test/export/no-remote-refs.test.ts — the source-wide backstop</span>
+  <p>
+    Counting requests at runtime only catches what a given page happened to reach for. This
+    test works from the other end: it scans a real export for any remote reference that
+    survived without a warning. A reference that never fires on the page you tested is still a
+    reference.
+  </p>
+</div>
+
+<div data-src="src/chrome/chrome-css.ts" data-rev="38304db" data-anchor-hash="f90901b6ae0d897b">
+  <span class="cite">src/chrome/chrome-css.ts — the shell stylesheet</span>
+  <p>
+    The chrome is the newest surface and therefore the likeliest place for a CDN font to have
+    crept in. It is a plain string constant with no <code>@import</code> and no
+    <code>url(https://)</code>; its own header comment states the rule, which is a weaker
+    guarantee than a test but a real one.
+  </p>
+</div>
+
+<h2><span class="num">03 — MEASURED JUST NOW</span>Both halves, on this build</h2>
+
+<p>
+  Rather than ask you to confirm something unmeasured, both paths were driven and every
+  request counted first — including requests that fail or are aborted, which a Network tab
+  shows but a naive listener misses.
+</p>
+
+<div class="term"><b>served session</b>  — shell + sandboxed artifact, UI exercised, 6s of heartbeats
+  total requests: <i>12</i>
+  by origin:      <i>12  http://127.0.0.1:4319</i>
+  external:       <i>NONE</i>
+
+<b>exported file</b>  — daemon stopped, opened over file://
+  total requests: <i>1</i>   (the document itself)
+  non-file:       <i>NONE</i>
+  http(s):// strings in the exported bytes: <i>none</i></div>
+
+<p>
+  So the expected result of your check is already known. That is deliberate: a check whose
+  outcome is a surprise is a check you have to debug, and this one should take a minute.
+</p>
+
+<h2><span class="num">04 — WHAT YOUR EYES ADD</span>Why this is still open</h2>
+
+<div data-src="src/daemon/server.ts#L556-L575" data-rev="38304db" data-anchor-hash="707497e536b1b01f">
+  <span class="cite">src/daemon/server.ts — the shell document</span>
+  <p>
+    Every automated check above looks for something it already knows to look for. The shell is
+    hand-written HTML with an inlined stylesheet and one local script tag — and a request nobody
+    thought to assert against is exactly the kind a test cannot fail on. DevTools shows you
+    <em>everything</em> the page asked for, including the thing the suite has no assertion for.
+    That is the entire difference between this check and the green suite.
+  </p>
+</div>
+
+<h2><span class="num">05 — THE CHECK</span>Four steps</h2>
+
+<ol class="steps">
+  <li>
+    <strong>Open the served session</strong> and press <code>F12</code> → <strong>Network</strong>.
+    Tick <strong>Disable cache</strong>, then reload.
+  </li>
+  <li>
+    <strong>Exercise it.</strong> Hover a few anchored blocks, click one and pick an intent, Tab
+    to another and press Enter, open and Escape the picker, write a note and queue it, and click
+    through the <strong>Review / Findings / Agent</strong> tabs in the rail.
+  </li>
+  <li>
+    <strong>Sort by Domain.</strong> One glance is the whole check: every row should read
+    <code>127.0.0.1</code>. Any other domain is a fail, however harmless it looks.
+  </li>
+  <li>
+    <strong>Then the exported half.</strong> Run <code>illuminate export &lt;file&gt;</code>, stop
+    the daemon, and open the exported file directly from disk. It should render completely, with
+    the Network tab showing only the file itself.
+  </li>
+</ol>
+
+<div class="verdict">
+  <h3>One correction to the old steps</h3>
+  <p class="tag">VALIDATION.md said "open the findings drawer"</p>
+  <p>
+    That drawer no longer exists — the review rail owns findings now, as a tab. The step above
+    is the current equivalent. Worth knowing before you go looking for a control that was
+    removed.
+  </p>
+</div>
+
+<h2><span class="num">06 — WHAT FAILURE WOULD LOOK LIKE</span></h2>
+
+<table>
+  <thead><tr><th>You see</th><th>It means</th></tr></thead>
+  <tbody>
+    <tr><td class="s">fonts.gstatic.com</td><td>A webfont crept into a stylesheet — the classic one, and invisible until the font is actually used</td></tr>
+    <tr><td class="s">any CDN host</td><td>A script or stylesheet reference survived; the source-wide test would also be failing</td></tr>
+    <tr><td class="s">a request that FAILS</td><td>Still a fail. The attempt is what leaks the hostname, whether or not it resolves</td></tr>
+    <tr><td class="s">only 127.0.0.1</td><td class="done">Pass. Record SERVE-10 and it is done</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  Served by illuminate. Every block with an amber left edge is anchored — click one and the
+  agent explains it from the real file, or tells you the claim has drifted. Blocks without that
+  edge (this footer, the table above) carry no citation, so an explanation of them is ungrounded
+  by design.
+</footer>
+
+</div>
+</body>
+</html>

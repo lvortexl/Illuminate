@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>illuminate — the review rail, 2026-09-18</title>
+<style>
+  :root {
+    --ink: #101219;
+    --ink-2: #171a23;
+    --rule: #262b38;
+    --paper: #e8e4dc;
+    --paper-dim: #9aa0ae;
+    --amber: #e0a458;
+    --teal: #5fb3a1;
+    --rose: #d97f7f;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--ink); }
+  body {
+    margin: 0;
+    padding: 0 1.5rem 8rem;
+    background: var(--ink);
+    color: var(--paper);
+    font: 16px/1.68 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 47rem; margin: 0 auto; }
+
+  header { padding: 5rem 0 3rem; border-bottom: 1px solid var(--rule); }
+  h1 {
+    font: 600 2.9rem/1.08 ui-serif, Georgia, "Times New Roman", serif;
+    letter-spacing: -0.022em; margin: 0 0 1rem;
+  }
+  h1 em { font-style: italic; color: var(--amber); }
+  .standfirst { font-size: 1.16rem; color: var(--paper-dim); margin: 0; max-width: 38rem; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0 2.5rem; margin-top: 2.5rem;
+           font: 500 0.78rem/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+           letter-spacing: 0.04em; text-transform: uppercase; }
+  .facts div { color: var(--paper-dim); }
+  .facts b { display: block; color: var(--paper); font-size: 1.5rem; font-weight: 600;
+             text-transform: none; letter-spacing: -0.01em; margin-top: 0.3rem; }
+  .facts .ok b { color: var(--teal); }
+  .facts .warn b { color: var(--amber); }
+
+  h2 {
+    font: 600 1.55rem/1.2 ui-serif, Georgia, serif; letter-spacing: -0.015em;
+    margin: 4.5rem 0 0.5rem; padding-top: 0.5rem;
+  }
+  h2 .num { font: 500 0.72rem/1 ui-monospace, Consolas, monospace; color: var(--amber);
+            letter-spacing: 0.14em; display: block; margin-bottom: 0.9rem; }
+  h3 { font-size: 1.02rem; font-weight: 600; margin: 2.4rem 0 0.4rem; letter-spacing: -0.005em; }
+  p { margin: 0 0 1.1rem; }
+  .lede { color: var(--paper-dim); font-size: 1.04rem; margin-bottom: 2rem; }
+  code { font: 0.875em/1.4 ui-monospace, "Cascadia Code", Consolas, monospace;
+         background: var(--ink-2); border: 1px solid var(--rule);
+         border-radius: 3px; padding: 0.08em 0.36em; color: var(--amber); }
+  a { color: var(--teal); }
+
+  [data-src] {
+    position: relative;
+    border-left: 2px solid var(--rule);
+    padding: 0.15rem 0 0.15rem 1.3rem;
+    margin: 1.5rem 0;
+    transition: border-color 120ms ease;
+  }
+  [data-src]:hover { border-left-color: var(--amber); }
+  [data-src] > .cite {
+    display: block;
+    font: 500 0.72rem/1.5 ui-monospace, Consolas, monospace;
+    color: var(--paper-dim); letter-spacing: 0.01em; margin-bottom: 0.45rem;
+  }
+  [data-src] > .cite::before { content: "\25B8  "; color: var(--amber); }
+  [data-src] p:last-child { margin-bottom: 0; }
+
+  .pipeline {
+    font: 0.79rem/1.62 ui-monospace, "Cascadia Code", Consolas, monospace;
+    background: var(--ink-2); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 1.4rem 1.5rem; overflow-x: auto; color: var(--paper-dim);
+    margin: 1.8rem 0; white-space: pre;
+  }
+  .pipeline b { color: var(--amber); font-weight: 500; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1.6rem 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.62rem 0.9rem 0.62rem 0; border-bottom: 1px solid var(--rule);
+           vertical-align: top; }
+  th { font: 500 0.72rem/1.5 ui-monospace, Consolas, monospace; letter-spacing: 0.08em;
+       text-transform: uppercase; color: var(--paper-dim); }
+  td.s { white-space: nowrap; font-family: ui-monospace, Consolas, monospace; font-size: 0.82rem; }
+  .done { color: var(--teal); } .open { color: var(--amber); } .gap { color: var(--rose); }
+
+  .decision { border: 1px solid var(--rule); border-radius: 6px; padding: 1.3rem 1.5rem;
+              margin: 1.5rem 0; background: var(--ink-2); }
+  .decision h3 { margin-top: 0; }
+  .decision .verdict { font: 500 0.74rem/1.5 ui-monospace, Consolas, monospace;
+                       letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal); }
+  .decision.warn .verdict { color: var(--amber); }
+
+  blockquote { margin: 1.5rem 0; padding-left: 1.3rem; border-left: 2px solid var(--amber);
+               color: var(--paper-dim); font-style: italic; }
+
+  footer { margin-top: 6rem; padding-top: 2rem; border-top: 1px solid var(--rule);
+           color: var(--paper-dim); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>The chrome grew a <em>rail</em></h1>
+  <p class="standfirst">
+    What one session changed, and why. Every claim below is anchored to the code that
+    implements it — click any of them and the agent will explain it from the real source,
+    or tell you the claim has gone stale.
+  </p>
+
+  <div class="facts">
+    <div class="ok">Unit tests<b>984 / 0 fail</b></div>
+    <div class="ok">Browser e2e<b>49 / 0 fail</b></div>
+    <div class="ok">Anchors<b>15 of 15</b></div>
+    <div class="warn">Pushed<b>nothing</b></div>
+  </div>
+</header>
+
+<h2><span class="num">01 — THE COMPLAINT</span>What you actually said</h2>
+
+<blockquote>
+  the tool is buggy graphically it is bad and the side bar (the queue was removed)
+  lavish was much better
+</blockquote>
+
+<p class="lede">
+  All three parts were true, and the third turned out to explain the first two.
+</p>
+
+<p>
+  I built it, served the demo artifact, drove it in a real browser, and ran lavish beside it
+  on the same page. Three defects reproduced with measurements — and one structural cause
+  sitting underneath them.
+</p>
+
+<div data-src="src/sdk/cards.ts#L196-L238" data-rev="38304db" data-anchor-hash="48c3c9ef23116ffa">
+  <span class="cite">src/sdk/cards.ts — positionAt</span>
+  <p>
+    <strong>Cards rendered off-screen.</strong> The clamp handled the two overflow
+    cases — a card extending past the bottom or right edge — and neither of the near
+    edges. An element scrolled above the fold has a <em>negative</em>
+    <code>rect.top</code>, which passes an overflow test untouched. A real card measured
+    <code>top: -482px</code> at 313px tall: entirely invisible. You clicked Explain and
+    nothing happened. Both axes now clamp on both sides.
+  </p>
+</div>
+
+<div data-src="src/daemon/server.ts#L556-L575" data-rev="38304db" data-anchor-hash="707497e536b1b01f">
+  <span class="cite">src/daemon/server.ts — handleOpenSession, the shell</span>
+  <p>
+    <strong>And the reason there was no sidebar.</strong> The shell served an iframe at
+    <code>position:fixed;inset:0</code>. The artifact owned the entire viewport, so a
+    persistent column could not exist — every piece of review UI had to be drawn
+    <em>inside</em> the sandboxed artifact as corner-pinned toggles and floating boxes.
+    The shell is a three-area grid now: bar, stage, rail.
+  </p>
+</div>
+
+<h2><span class="num">02 — THE TELL</span>Six comments saying the same thing</h2>
+
+<p>
+  The chrome client carried this sentence in six places: <em>"no chrome-shell UI exists yet
+  to surface this to."</em> A failed dispatch, a failed sync, a superseded load, a degraded
+  staleness watcher — all best-effort, all silent, all deferring to a surface nobody had
+  built. That surface is the rail.
+</p>
+
+<div data-src="src/chrome/rail.ts" data-rev="38304db" data-anchor-hash="7fc584d25c9ab86a">
+  <span class="cite">src/chrome/rail.ts — createRail</span>
+  <p>
+    Review, Findings and Agent tabs, and the queue. It owns no network and no postMessage —
+    every side effect leaves through a callback, so the chrome client keeps its position as
+    the only place an HTTP call is ever made. Card prose is model output arriving from a
+    sandboxed frame, so it is assigned by <code>textContent</code> only, never
+    <code>innerHTML</code> — the same invariant the in-artifact renderer holds.
+    <em>Its own composer is gone:</em> notes are written on the element now, so what stays in
+    the footer is the one genuinely rail-shaped action — flushing the whole queue at once.
+  </p>
+</div>
+
+<div data-src="src/chrome/chrome-css.ts" data-rev="38304db" data-anchor-hash="f90901b6ae0d897b">
+  <span class="cite">src/chrome/chrome-css.ts — CHROME_CSS</span>
+  <p>
+    The old chrome was not bad because it was hand-written. It was bad because it had no
+    scale to be consistent with: one grey, one blue, 11px system-ui throughout. There is a
+    token layer now — surfaces, four ink steps, one accent, semantic state, a 4px space
+    ramp, two motion durations — and the artifact stylesheet mirrors its values so a card
+    and the rail beside it stop reading as two different products. Nothing here may
+    reference a remote URL: the zero-outbound-request export proof covers this document too.
+  </p>
+</div>
+
+<h2><span class="num">03 — THE QUEUE</span>Point, write, queue, send</h2>
+
+<div class="pipeline">click an element        <b>illuminate:selectElement</b>   free, creates nothing
+      ↓
+composer targets it     rail                           intent + your own words
+      ↓
+<b>Queue</b>                   local to this tab only         nothing an agent can see yet
+      ↓
+<b>Send to Agent</b>           POST /api/:key/dispatches      one batch, N envelopes
+      ↓
+illuminate poll         the agent reads your note      ← this link was missing
+      ↓
+illuminate answer       card lands in the rail</div>
+
+<div data-src="src/shared/intent.ts#L109-L127" data-rev="38304db" data-anchor-hash="59c68b242a6f5653">
+  <span class="cite">src/shared/intent.ts — TypedIntentPayload.note</span>
+  <p>
+    The obvious shortcut was to reuse <code>learnerNote</code>, which already existed on the
+    wire. It would have been wrong in a way nothing would have reported: a
+    <code>learnerNote</code> is the reader's own <em>explanation</em>, and its presence
+    switches the envelope to the grading contract. Every note you typed would have been
+    silently submitted to be marked. A note is payload carried <em>by</em> a typed intent —
+    it never selects the role, the tier or the tools, and a test proves that against a note
+    that tries to.
+  </p>
+</div>
+
+<div data-src="src/cli/output.ts#L143-L176" data-rev="38304db" data-anchor-hash="193565092c5f46f0">
+  <span class="cite">src/cli/output.ts — renderPollResult</span>
+  <p>
+    <strong>The gap that mattered most was not visual.</strong> The composer wrote a note,
+    the wire carried it, the envelope kept it — and this renderer printed id, role, tier,
+    intent and source, and not the note. An agent polling for work saw
+    <code>explain src/foo.ts:1-20</code> and none of what had been asked. Whatever this
+    function omits does not exist as far as that agent is concerned. The note, the learner's
+    explanation and the path of every attached image all print now, in full, under distinct
+    labels.
+  </p>
+</div>
+
+<div data-src="src/sdk/follow-up.ts" data-rev="38304db" data-anchor-hash="6443c21673f3dabb">
+  <span class="cite">src/sdk/follow-up.ts — buildFollowUpPayload</span>
+  <p>
+    Suppressing the floating card made <em>Go deeper</em> and <em>Check my understanding</em>
+    unreachable — a regression I introduced and had to find. The rail cannot build those
+    payloads itself: a follow-up must be grounded in the element as it reads
+    <em>now</em>, and the rail holds only the stored snapshot, which is by definition what
+    the artifact said earlier. So the rail asks the artifact to run the action, and this is
+    the single construction both paths use.
+  </p>
+</div>
+
+<h2><span class="num">04 — THE THREE OLD DEFECTS</span>Closed in parallel</h2>
+
+<div data-src="src/daemon/state-dir.ts#L69-L78" data-rev="38304db" data-anchor-hash="c4b19f244d21fc68">
+  <span class="cite">src/daemon/state-dir.ts — canonicalPathKey, statePathHash</span>
+  <p>
+    <code>illuminate stop .demo</code> printed "not running" while the daemon kept
+    listening. Three modules each had their own copy of "lower-case the raw string, hash
+    it", so every spelling but one hashed to a key no daemon had written. One canonical form
+    now, and a file argument resolves to its directory. No migration was needed and that is
+    provable: canonicalization is a fixed point for the derivation the working path already
+    used.
+  </p>
+</div>
+
+<div data-src="src/daemon/dispatch-ledger.ts#L120-L194" data-rev="38304db" data-anchor-hash="94ae448103678346">
+  <span class="cite">src/daemon/dispatch-ledger.ts — enqueueDispatch</span>
+  <p>
+    A failed dispatch used to poison its element and intent permanently: the entry stayed
+    <code>open</code>, dedupe matched against it, and every retry was a silent no-op — even
+    after the original cause was fixed. A retry now re-opens a dispatch that has no answer
+    <em>and</em> nothing working on it, keeping the existing id. Age-based expiry was
+    rejected: age is a guess, "nothing is listening and nothing came back" is a fact.
+  </p>
+</div>
+
+<div data-src="src/daemon/state-gc.ts" data-rev="38304db" data-anchor-hash="0b870db337149713">
+  <span class="cite">src/daemon/state-gc.ts — the sweep</span>
+  <p>
+    The state directory had grown to 238 files with nothing ever removing them. A pair is
+    deleted only when the daemon is provably dead, no artifact named by any session still
+    exists, and the newer file is past a minimum age. Liveness is a pid check, never a
+    socket — garbage collection must not connect to an arbitrary port it found on disk.
+    238 files became 5 on the first run.
+  </p>
+</div>
+
+<h2><span class="num">05 — THE PROOF</span>What was actually run</h2>
+
+<div data-src="e2e/review-rail.spec.ts" data-rev="38304db" data-anchor-hash="37b740849145e990">
+  <span class="cite">e2e/review-rail.spec.ts — the rail's own suite</span>
+  <p>
+    Deliberately geometric, because the old design failed geometrically: the artifact ends
+    where the rail begins, every card has a box inside the viewport, a queued note survives
+    until sent and is gone after, and a follow-up reaches the daemon with the right depth,
+    parent and note/learnerNote split. A card that renders at <code>top: -482px</code>
+    passes any assertion about its existence.
+  </p>
+</div>
+
+<table>
+  <thead><tr><th>Gate</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>Unit tests</td><td class="s">920 · 919 pass</td><td class="s done">985 · 984 pass · 0 fail</td></tr>
+    <tr><td>Browser e2e</td><td class="s">35</td><td class="s done">49 · 0 fail</td></tr>
+    <tr><td>Anchors resolve</td><td class="s">13 of 15</td><td class="s done">15 of 15</td></tr>
+    <tr><td>build · typecheck · eslint · skill</td><td class="s">pass</td><td class="s done">pass</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">06 — HONESTY</span>Three things I got wrong on the way</h2>
+
+<p>
+  <strong>The build was broken and the tests were green.</strong> A CSS comment inside the
+  artifact stylesheet used backticks — inside a template literal, which ended the stylesheet
+  mid-rule. esbuild failed loudly, but <code>npm run build | tail -1</code> reports
+  <em>tail's</em> exit status, so every gate chained after it passed against a stale
+  <code>dist</code>. Found by taking a screenshot, not by running anything.
+</p>
+
+<p>
+  <strong>I made an existing test vacuous.</strong> The rail renders a pending row and a real
+  answer with the same class, told apart by a data attribute. A spec that waited for
+  <code>.il-card</code> to prove a card stops saying "thinking…" now matched the placeholder
+  already on screen and passed instantly.
+</p>
+
+<p>
+  <strong>I animated a fact.</strong> The staleness marker's fill was in a CSS transition, so
+  a computed-style read could land mid-interpolation — 0.337 against a declared 0.35. Hover
+  and focus may ease; a marker appearing is information, and delaying it is not a flourish.
+</p>
+
+<h2><span class="num">07 — WHAT IS LEFT</span>Open, and deliberately so</h2>
+
+<div class="decision warn">
+  <h3>The inline card renderer is now dead code</h3>
+  <p class="verdict">Decided: delete it — queued, not done</p>
+  <p>
+    The chrome re-asserts rail mode on every sync, so nothing can opt back into the floating
+    renderer for longer than a heartbeat. Seven specs were migrated to the rail rather than
+    left asserting a surface no user can reach. The renderer itself still exists.
+  </p>
+</div>
+
+<div class="decision warn">
+  <h3>The findings directory is still unbounded</h3>
+  <p class="verdict">Decided: needs a schema change first</p>
+  <p>
+    Roughly 550 files. They are keyed by a hash of the artifact path, with no liveness signal
+    and no stored path — so nothing can prove one dead. Closing it means recording the
+    artifact path in the findings file, which is a format change, not a sweep.
+  </p>
+</div>
+
+<div class="decision">
+  <h3>Nothing was pushed</h3>
+  <p class="verdict">Waiting on you</p>
+  <p>
+    13 commits on <code>master</code>. The three eyes-only checks and the publication call
+    from the last session are still open and still yours.
+  </p>
+</div>
+
+<footer>
+  Served by illuminate. Point at any block above to ask about it — the thing this session
+  rebuilt is the surface you would be pointing with.
+</footer>
+
+</div>
+</body>
+</html>

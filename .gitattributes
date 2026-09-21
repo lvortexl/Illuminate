@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Adversarial HTML fixtures for the byte-exact injection test suite are golden
+# byte sequences (one of them intentionally carries a UTF-8 BOM + CRLF). Git's
+# text=auto/eol=lf normalization above would silently rewrite those bytes on
+# checkout regardless of core.autocrlf, breaking the byte-equality tests for
+# the wrong reason. Treat this directory as binary: no line-ending or charset
+# conversion, ever.
+test/fixtures/artifacts/*.html -text
