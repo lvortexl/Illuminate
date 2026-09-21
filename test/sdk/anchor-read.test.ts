@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readAnchorAttributes } from '../../src/sdk/anchor-read.ts';
+import { readAnchorAttributes, readFileList } from '../../src/sdk/anchor-read.ts';
 
 test('reads data-src and data-rev when both are present, and a null anchorHash when data-anchor-hash is absent', () => {
   const result = readAnchorAttributes((name) =>
@@ -49,4 +49,40 @@ test('DOES now read data-anchor-hash and pass it through -- reversal of Phase 4 
   });
   assert.strictEqual(hashWasRead, true);
   assert.deepStrictEqual(result, { src: 'src/main.ts', rev: null, anchorHash: 'cafebabe01234567' });
+});
+
+// ---------------------------------------------------------------------------
+// data-files: one section citing several files.
+// ---------------------------------------------------------------------------
+
+test('readFileList returns one anchor per comma-separated path', () => {
+  const attrs: Record<string, string> = { 'data-files': 'src/a.ts,src/b.ts', 'data-rev': 'abc123' };
+  const anchors = readFileList((name) => attrs[name] ?? null);
+  assert.deepStrictEqual(anchors, [
+    // No hash: a listed file grounds at the file-level tier, which is the
+    // whole point -- an author listing files should not have to stamp each.
+    { src: 'src/a.ts', rev: 'abc123', anchorHash: null },
+    { src: 'src/b.ts', rev: 'abc123', anchorHash: null },
+  ]);
+});
+
+test('readFileList tolerates whitespace and drops empty entries', () => {
+  const attrs: Record<string, string> = { 'data-files': ' src/a.ts , , src/b.ts ,' };
+  const anchors = readFileList((name) => attrs[name] ?? null);
+  assert.deepStrictEqual(
+    anchors.map((a) => a.src),
+    ['src/a.ts', 'src/b.ts'],
+  );
+});
+
+test('readFileList returns an empty list when the attribute is absent or blank', () => {
+  assert.deepStrictEqual(readFileList(() => null), []);
+  assert.deepStrictEqual(readFileList((n) => (n === 'data-files' ? '   ,  ' : null)), []);
+});
+
+test('a listed path may carry its own line range, like data-src', () => {
+  const attrs: Record<string, string> = { 'data-files': 'src/a.ts#L1-L5,src/b.ts' };
+  const anchors = readFileList((name) => attrs[name] ?? null);
+  assert.strictEqual(anchors[0]?.src, 'src/a.ts#L1-L5');
+  assert.strictEqual(anchors[1]?.src, 'src/b.ts');
 });

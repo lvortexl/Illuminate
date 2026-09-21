@@ -24,6 +24,9 @@ const FIXTURE_HTML = `<!DOCTYPE html>
     <p id="alpha" data-src="${FILE_A}" style="width: 300px">Alpha section, anchored at alpha.ts.</p>
     <p id="beta" data-src="${FILE_B}" style="width: 300px">Beta section, anchored at beta.ts.</p>
     <p id="plain" style="width: 300px">A plain paragraph that anchors nothing at all.</p>
+    <p id="listed" data-files="${FILE_A}, ${FILE_B}" style="width: 300px">
+      One section citing two files, with no hash stamped on either.
+    </p>
   </body>
 </html>
 `;
@@ -44,7 +47,7 @@ test.afterAll(async () => {
 interface PollBody {
   readonly status: string;
   readonly dispatches: readonly {
-    readonly targets: readonly { readonly source: { readonly path: string } | null }[];
+    readonly targets: readonly { readonly source: { readonly path: string; readonly status: string } | null }[];
   }[];
 }
 
@@ -152,4 +155,25 @@ test('right-clicking OUTSIDE the selection acts on that one section only', async
   const targets = body.dispatches[0]?.targets ?? [];
   expect(targets).toHaveLength(1);
   expect(targets[0]?.source?.path).toBe(FILE_B);
+});
+
+test('a section citing data-files reaches the agent with one target per listed file', async ({ page }) => {
+  const { frame } = await openRealChromeShell(page, ctx.port, ctx.key);
+
+  const polled = fetch(`http://127.0.0.1:${String(ctx.port)}/api/${ctx.key}/poll?timeoutMs=15000`).then(
+    (res) => res.json() as Promise<PollBody>,
+  );
+
+  await frame.locator('#listed').click({ button: 'right' });
+  await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
+  await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
+
+  const body = await polled;
+  const targets = body.dispatches[0]?.targets ?? [];
+  // One section, two cited files -> two targets, each resolved on its own.
+  expect(targets).toHaveLength(2);
+  expect(targets.map((t) => t.source?.path)).toEqual([FILE_A, FILE_B]);
+  // Listed files ground at the file-level tier: no hash was stamped, and
+  // requiring one is exactly the ritual that made grounding fail before.
+  expect(targets.map((t) => t.source?.status)).toEqual(['file-level', 'file-level']);
 });

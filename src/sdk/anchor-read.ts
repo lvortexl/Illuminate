@@ -21,3 +21,34 @@ export function readAnchorAttributes(getAttribute: (name: string) => string | nu
   if (!src) return null;
   return { src, rev: getAttribute('data-rev'), anchorHash: getAttribute('data-anchor-hash') };
 }
+
+/**
+ * Reads `data-files` -- one section citing SEVERAL files.
+ *
+ * Deliberately hash-less: each listed path grounds at the file-level tier
+ * (`resolve()`'s `file-level` status), which is the entire point. Asking an
+ * author to stamp a content hash per file would put the ritual back that made
+ * grounding fail in ordinary artifacts, and a list of files is a coarser
+ * claim than a pinned region anyway -- the weaker tier is the honest one for
+ * it. An author who wants drift detection on a specific region still uses
+ * `data-src` with a hash; the two are different claims, not two spellings of
+ * one.
+ *
+ * Each entry may carry its own `#Lx-Ly` range, exactly like `data-src` --
+ * `splitAnchorSrc` (router/envelope.ts) does the same split for both, so the
+ * grammar is shared rather than re-specified here.
+ *
+ * Empty entries are dropped rather than rejected: a trailing comma in a
+ * hand-written attribute is a typo, not a reason to silently unground the
+ * whole section.
+ */
+export function readFileList(getAttribute: (name: string) => string | null): IntentAnchor[] {
+  const raw = getAttribute('data-files');
+  if (!raw) return [];
+  const rev = getAttribute('data-rev');
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map((src) => ({ src, rev, anchorHash: null }));
+}

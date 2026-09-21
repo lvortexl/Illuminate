@@ -1,6 +1,6 @@
 import { boot } from './boot.ts';
 import { buildSelector, buildUid, truncateText, walkChain } from './addressing.ts';
-import { readAnchorAttributes } from './anchor-read.ts';
+import { readAnchorAttributes, readFileList } from './anchor-read.ts';
 import { computeElementSnapshot, parseAnchorRangeFromSrc } from './snapshot.ts';
 import { renderElementComposer, type ElementComposerHandle } from './element-composer.ts';
 import { postTypedIntent, postDismissFinding, postComposerSubmission } from './post.ts';
@@ -49,7 +49,11 @@ function parseRevealElement(data: unknown): string | null {
  * existing graceful-degradation path intact.
  */
 function nearestAnchored(el: Element): Element | null {
-  return el.closest('[data-src]');
+  // Both citation forms count: `data-src` pins a region, `data-files` lists
+  // files. A section that cites its sources via `data-files` is every bit as
+  // "about something" as one with `data-src`, and leaving it out here would
+  // make clicking its prose select the wrapper above it instead.
+  return el.closest('[data-src], [data-files]');
 }
 
 const result = boot();
@@ -118,6 +122,22 @@ if (result) {
     selection.clear();
   }
 
+  /** The targets one selected section contributes.
+   *
+   * Usually exactly one. A section carrying `data-files` contributes ONE PER
+   * LISTED FILE, all sharing that section's element identity: the reader
+   * pointed at one place, but it cites several files, and each needs its own
+   * resolution status so the agent can say which one it could not read.
+   * `data-src` (a pinned region) still wins when both are present -- it is
+   * the more specific claim. */
+  function buildTargetsFor(el: Element): { element: IntentElement; anchor: ReturnType<typeof readAnchorAttributes> }[] {
+    const base = buildTarget(el);
+    if (base.anchor !== null) return [base];
+    const listed = readFileList(el.getAttribute.bind(el));
+    if (listed.length === 0) return [base];
+    return listed.map((anchor) => ({ element: base.element, anchor }));
+  }
+
   /** The element -> payload-target shape, used for every selected section. */
   function buildTarget(el: Element): { element: IntentElement; anchor: ReturnType<typeof readAnchorAttributes> } {
     const chain = walkChain(el);
@@ -156,7 +176,7 @@ if (result) {
     // pointing somewhere else, so that one section is the subject and the
     // existing selection is left alone rather than silently extended.
     const acting: Element[] = selection.has(el) ? [...selection] : [el];
-    const targets = acting.map(buildTarget);
+    const targets = acting.flatMap(buildTargetsFor);
     const primary = targets[0];
     if (primary === undefined) return;
     const anchor = primary.anchor;
@@ -280,7 +300,7 @@ if (result) {
   // attribute -- i.e. they are already marked "about something," which is
   // what makes them the right bounded set (FEATURES.md's cheap-
   // differentiator framing). ---
-  const anchoredElements = Array.from(document.querySelectorAll('[data-src]'));
+  const anchoredElements = Array.from(document.querySelectorAll('[data-src], [data-files]'));
   const triggers = anchoredElements.map((el) => {
     const button = document.createElement('button');
     button.type = 'button';

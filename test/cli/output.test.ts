@@ -49,7 +49,7 @@ test('renderDesign: ASCII-only, non-empty, points to playbook', () => {
   assert.match(design, /playbook/);
 });
 
-test('renderPlaybookIndex: lists all 3 real ids, ASCII-only, and is not a dump of any single playbook body', () => {
+test('renderPlaybookIndex: lists every real id, ASCII-only, and is not a dump of any single playbook body', () => {
   const index = renderPlaybookIndex(PLAYBOOKS);
   assert.ok(isAsciiOnly(index), 'renderPlaybookIndex output is not ASCII-only');
   for (const playbook of PLAYBOOKS) {
@@ -57,6 +57,10 @@ test('renderPlaybookIndex: lists all 3 real ids, ASCII-only, and is not a dump o
   }
   for (const playbook of PLAYBOOKS) {
     for (const line of playbook.body) {
+      // Blank lines are a legitimate formatting device inside a body and
+      // carry no content, so they cannot "leak" -- and `includes('')` is
+      // vacuously true, which would make this assertion unfalsifiable.
+      if (line.length === 0) continue;
       assert.ok(!index.includes(line), `renderPlaybookIndex leaked a body line from '${playbook.id}': ${JSON.stringify(line)}`);
     }
   }
