@@ -16,6 +16,7 @@ export type DriftState =
   | 'cannot-determine'
   | 'refused'
   | 'no-git'
+  | 'file-level'
   | 'unanchored';
 
 /**

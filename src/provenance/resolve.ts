@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { AnchorRef, DriftState, ResolveResult } from './types.ts';
-import { parseAnchor } from './anchor.ts';
+import { parseAnchor, parseFileReference } from './anchor.ts';
 import type { AnchorInput } from './anchor.ts';
 import { confineToRepoRoot } from './confine.ts';
 import { isGitAvailable, findRepoRoot, isWorkingTreeDirtyAt, parseSubmodulePaths, pathMatchesSubmodule } from './git-meta.ts';
@@ -72,6 +72,97 @@ function cannotDetermine(reason: string): ResolveResult {
 function splitLines(text: string): string[] {
   const withoutTrailingNewline = text.replace(/\r\n$|\n$/, '');
   return withoutTrailingNewline.split(/\r\n|\n/);
+}
+
+/**
+ * ADR-002's content budget. A verifier handed a SILENTLY truncated file will
+ * answer confidently from the part it got, which is the exact confabulation
+ * EDU-07 exists to prevent — so truncation is always marked in the content
+ * itself, never merely implied by a length.
+ */
+const FILE_LEVEL_MAX_BYTES = 64 * 1024;
+const FILE_LEVEL_MAX_LINES = 2000;
+
+function applyBudget(raw: string, path: string): string {
+  const lines = splitLines(raw);
+  const overLines = lines.length > FILE_LEVEL_MAX_LINES;
+  const kept = overLines ? lines.slice(0, FILE_LEVEL_MAX_LINES) : lines;
+  let text = kept.join('\n');
+  const overBytes = Buffer.byteLength(text, 'utf8') > FILE_LEVEL_MAX_BYTES;
+  if (overBytes) {
+    text = Buffer.from(text, 'utf8').subarray(0, FILE_LEVEL_MAX_BYTES).toString('utf8');
+  }
+  if (!overLines && !overBytes) return text;
+  const limit = overLines ? `${String(FILE_LEVEL_MAX_LINES)} lines` : `${String(FILE_LEVEL_MAX_BYTES)} bytes`;
+  return `${text}\n\n[TRUNCATED: ${path} exceeds the ${limit} file-level budget. Content beyond this point was NOT read. Answer 'not determinable' for any claim that depends on it.]`;
+}
+
+/**
+ * ADR-001's file-level tier: a `data-src` that names a readable file but
+ * carries no `data-anchor-hash`.
+ *
+ * Before this existed, such a reference was `refused` outright, so `verify`
+ * short-circuited to "no resolved source content is available" WITHOUT EVER
+ * OPENING THE FILE — even though the file was present, readable and named
+ * correctly. Stamping a hash needs a git repo and a clean tree, which no
+ * ordinary agent-generated artifact has done.
+ *
+ * This is deliberately NOT a relaxation of the mandatory-hash rule: pinned
+ * anchors keep it, and keep their staleness guarantee with it. This tier is
+ * weaker and says so — `eligibleForStaleness` is false, `resolvedRev` is
+ * null, and the status itself travels to the answering agent inside
+ * `DispatchSource`, so a working-tree read can never be mistaken in the
+ * record for a revision-pinned one (ADR-003).
+ *
+ * Containment is enforced through the SAME `parseFileReference` a pinned
+ * anchor uses, so this tier can never accept a path the pinned tier refuses.
+ */
+function serveFileLevel(repoRoot: string, input: AnchorInput): ResolveResult {
+  const parsed = parseFileReference(repoRoot, input);
+  if (!parsed.ok) {
+    return refused(parsed.reason);
+  }
+  const ref = parsed.ref;
+
+  const confined = confineToRepoRoot(repoRoot, ref.path);
+  if (confined === null) {
+    // Unreachable in practice (parseFileReference just checked), kept for the
+    // same belt-and-suspenders reason serveNoGit keeps its copy: a raw
+    // readFileSync call site must never rely on an upstream guarantee.
+    return refused('path escapes repo root');
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(confined, 'utf8');
+  } catch (err) {
+    return {
+      status: 'file-level',
+      content: null,
+      resolvedRev: null,
+      resolvedRange: null,
+      eligibleForStaleness: false,
+      reason: `no data-anchor-hash, and the referenced path could not be read: ${(err as Error).message}`,
+    };
+  }
+
+  const lines = splitLines(raw);
+  const requested =
+    ref.startLine !== null && ref.endLine !== null ? { startLine: ref.startLine, endLine: ref.endLine } : null;
+  const inBounds =
+    requested !== null && requested.startLine >= 1 && requested.endLine >= requested.startLine && requested.endLine <= lines.length;
+
+  return {
+    status: 'file-level',
+    content: inBounds ? lines.slice(requested.startLine - 1, requested.endLine).join('\n') : applyBudget(raw, ref.path),
+    resolvedRev: null,
+    resolvedRange: inBounds ? requested : null,
+    eligibleForStaleness: false,
+    reason:
+      'no data-anchor-hash on this reference; serving current working-tree content at file level. ' +
+      'This is NOT pinned to a revision and NOT checked for drift — ground any claim in the content shown, ' +
+      'and say so when the content cannot settle it.',
+  };
 }
 
 /**
@@ -370,6 +461,14 @@ export async function resolve(
       eligibleForStaleness: false,
       reason: 'no data-src anchor present on this element; no path context available to serve content from',
     };
+  }
+
+  // ADR-001: a reference with no hash is not a broken pinned anchor, it is a
+  // weaker tier. Routed BEFORE parseAnchor, whose mandatory-hash rule would
+  // otherwise refuse a file that is present and readable. Deliberately ahead
+  // of every git probe too: file-level grounding never needs a repository.
+  if (!input.anchorHash) {
+    return serveFileLevel(repoRoot, input);
   }
 
   // parseAnchor enforces containment internally (Plan 01, confine.ts) — a

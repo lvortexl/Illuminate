@@ -85,16 +85,36 @@ test('refused: a path-traversal anchor (../.env) is refused before any git call'
   assert.strictEqual(result.content, null);
 });
 
-test('refused: a malformed anchor (missing data-anchor-hash) is refused with a reason distinct from a path-escape refusal', async (t) => {
+test('refused: a malformed anchor is refused with a reason distinct from a path-escape refusal', async (t) => {
   const { repo, pool } = useRepoAndPool(t);
   repo.commitFile('file.txt', 'hello\n', 'add file.txt');
 
   const escapeResult = await resolve(repo.root, { path: '../.env', anchorHash: HASH }, pool);
-  const malformedResult = await resolve(repo.root, { path: 'file.txt', anchorHash: '' }, pool);
+  const malformedResult = await resolve(repo.root, { path: 'file.txt', range: 'banana', anchorHash: HASH }, pool);
 
   assert.strictEqual(malformedResult.status, 'refused');
   assert.notStrictEqual(malformedResult.reason, null);
   assert.notStrictEqual(malformedResult.reason, escapeResult.reason);
+});
+
+// ADR-001 changed this case deliberately. A missing data-anchor-hash USED to
+// be refused, which meant a present, readable, correctly-named file was never
+// opened and `verify` answered "no resolved source content is available"
+// without looking. It is now the weaker file-level tier instead. The pinned
+// tier's mandatory-hash rule is untouched -- see parseAnchor, which still
+// refuses, and which this path deliberately routes around rather than
+// relaxing.
+test('file-level: a missing data-anchor-hash serves working-tree content instead of refusing', async (t) => {
+  const { repo, pool } = useRepoAndPool(t);
+  repo.commitFile('file.txt', 'hello\n', 'add file.txt');
+
+  const result = await resolve(repo.root, { path: 'file.txt', anchorHash: '' }, pool);
+
+  assert.strictEqual(result.status, 'file-level');
+  assert.match(result.content ?? '', /hello/);
+  // Weaker on purpose: no pinned rev, and never drift-checked.
+  assert.strictEqual(result.resolvedRev, null);
+  assert.strictEqual(result.eligibleForStaleness, false);
 });
 
 test('no-git: findRepoRoot returns null (no .git ancestor) serves content directly from the confined path', async (t) => {

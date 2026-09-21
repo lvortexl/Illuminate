@@ -104,7 +104,11 @@ test('buildDispatchEnvelope: role/tier for an anchored payload come from resolve
 // Task 2: refusal is data on the envelope, never a thrown exception
 // ---------------------------------------------------------------------------
 
-test('buildDispatchEnvelope: a missing data-anchor-hash produces a valid envelope with source.status "refused", never throws', async (t) => {
+// ADR-001: a missing data-anchor-hash is no longer a refusal. The invariant
+// this test actually guards -- a valid envelope, never a thrown exception,
+// role/tier untouched -- is unchanged and still asserted; only the status and
+// the presence of content moved, because the file is now actually read.
+test('buildDispatchEnvelope: a missing data-anchor-hash produces a valid envelope with source.status "file-level" and real content, never throws', async (t) => {
   const repo = usingFixture(t);
   repo.commitFile('src/whatever.ts', block(['a']), 'add whatever.ts');
   const anchor: IntentAnchor = { src: 'src/whatever.ts#L1-L1', rev: null, anchorHash: null };
@@ -113,9 +117,9 @@ test('buildDispatchEnvelope: a missing data-anchor-hash produces a valid envelop
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
   assert.ok(envelope.source !== null);
-  assert.strictEqual(envelope.source.status, 'refused');
-  assert.strictEqual(envelope.source.content, null);
-  // Refusal never touches role/tier either.
+  assert.strictEqual(envelope.source.status, 'file-level');
+  assert.notStrictEqual(envelope.source.content, null);
+  // Grounding tier never touches role/tier either.
   assert.strictEqual(envelope.role, 'tutor');
   assert.strictEqual(envelope.model_tier, 'haiku');
 });

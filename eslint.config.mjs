@@ -1,7 +1,11 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'scripts/**', 'spike/**'] },
+  // `.claude/**` is agent scaffolding for building this tool, not tool source:
+  // CommonJS hook/statusline helpers the harness loads directly, and excluded
+  // from the published snapshot entirely. Linting them as project TypeScript
+  // reports 8 no-require-imports errors for code that must use `require`.
+  { ignores: ['dist/**', 'node_modules/**', 'scripts/**', 'spike/**', '.claude/**'] },
   ...tseslint.configs.recommended,
   {
     rules: {

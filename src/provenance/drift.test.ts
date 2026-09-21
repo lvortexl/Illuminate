@@ -39,12 +39,17 @@ function block(lines: readonly string[]): string {
 // style choice.
 // ---------------------------------------------------------------------------
 
-type CoreDriftState = Exclude<DriftState, 'refused' | 'no-git' | 'unanchored'>;
+// 'file-level' joins 'refused'/'no-git'/'unanchored' as a resolve-TIER status
+// rather than a drift classification: it describes how the content was
+// obtained (a working-tree read of an unpinned reference), not how it drifted.
+// classifyDrift can never produce it — nothing is compared against a blob —
+// so it is excluded here for the same reason the other three are.
+type CoreDriftState = Exclude<DriftState, 'refused' | 'no-git' | 'unanchored' | 'file-level'>;
 
 const observedStates = new Set<CoreDriftState>();
 
 function recordState(state: DriftState): void {
-  if (state === 'refused' || state === 'no-git' || state === 'unanchored') {
+  if (state === 'refused' || state === 'no-git' || state === 'unanchored' || state === 'file-level') {
     throw new Error(`classifyDrift produced an out-of-scope state for this plan: ${state}`);
   }
   observedStates.add(state);
