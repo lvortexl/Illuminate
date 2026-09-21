@@ -195,7 +195,7 @@ async function createSession(port: number, file: string): Promise<string> {
  * multiple, deliberately-separate dispatches into "the same click asked
  * twice" (dispatch-ledger.ts's own documented dedupe semantics). */
 async function dispatchUnanchored(port: number, key: string, uid: string, intent: Intent = 'explain'): Promise<string> {
-  const payload = buildTypedIntentPayload({ intent, element: { ...ELEMENT, uid, selector: `#${uid}` }, anchor: null });
+  const payload = buildTypedIntentPayload({ intent, targets: [{ element: { ...ELEMENT, uid, selector: `#${uid}` }, anchor: null }] });
   const res = await postJson(port, `/api/${key}/dispatches`, payload);
   assert.strictEqual(res.status, 200, `dispatch creation failed: ${res.body}`);
   const body = JSON.parse(res.body) as { dispatch_id: string };
@@ -216,7 +216,7 @@ test('full round trip: a real anchored dispatch is delivered by poll, answered, 
     const region = ['export function add(a: number, b: number): number {', '  return a + b;', '}'];
     const rev = repo.commitFile('src/math.ts', block(region), 'add math.ts');
     const anchor: IntentAnchor = { src: 'src/math.ts#L1-L3', rev, anchorHash: anchorHash(region.join('\n')) };
-    const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor });
+    const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor }] });
 
     const created = await postJson(port, `/api/${key}/dispatches`, payload);
     assert.strictEqual(created.status, 200);
@@ -227,14 +227,19 @@ test('full round trip: a real anchored dispatch is delivered by poll, answered, 
     assert.strictEqual(firstPoll.status, 200);
     const firstBody = JSON.parse(firstPoll.body) as {
       status: string;
-      dispatches: Array<{ dispatch_id: string; role: string; model_tier: string; source: { content: string | null } | null }>;
+      dispatches: Array<{
+        dispatch_id: string;
+        role: string;
+        model_tier: string;
+        targets: Array<{ source: { content: string | null } | null }>;
+      }>;
     };
     assert.strictEqual(firstBody.status, 'dispatch');
     assert.strictEqual(firstBody.dispatches.length, 1);
     assert.strictEqual(firstBody.dispatches[0]?.dispatch_id, dispatchId);
     assert.strictEqual(firstBody.dispatches[0]?.role, 'tutor');
     assert.strictEqual(firstBody.dispatches[0]?.model_tier, 'haiku');
-    assert.strictEqual(firstBody.dispatches[0]?.source?.content, region.join('\n'));
+    assert.strictEqual(firstBody.dispatches[0]?.targets[0]?.source?.content, region.join('\n'));
 
     const answerRes = await postJson(port, `/api/dispatches/${dispatchId}/answer`, {
       markdown: 'This adds two numbers together and returns the sum.',
@@ -511,7 +516,7 @@ test('EDU-02 black-box proof: 20 real, distinct, uniquely-marked explanations ne
 test('a mutating dispatch route rejects a request bearing a foreign Origin header, and allows one with no Origin at all', async () => {
   await withServer(async ({ port, repo }) => {
     const key = await createSession(port, join(repo.root, 'artifact.html'));
-    const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null });
+    const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] });
 
     const foreign = await postJson(port, `/api/${key}/dispatches`, payload, { Origin: 'https://evil.example' });
     assert.strictEqual(foreign.status, 403);
@@ -529,7 +534,7 @@ test('a mutating dispatch route rejects a request bearing a foreign Origin heade
 test('ROUT-06 real refusal over real HTTP: a fix-code answer below the opus floor is 403, the ledger entry stays open, and no cost is recorded', async () => {
   await withServer(async ({ port, repo }) => {
     const key = await createSession(port, join(repo.root, 'artifact.html'));
-    const payload = buildTypedIntentPayload({ intent: 'fix-code', element: ELEMENT, anchor: null });
+    const payload = buildTypedIntentPayload({ intent: 'fix-code', targets: [{ element: ELEMENT, anchor: null }] });
 
     const created = await postJson(port, `/api/${key}/dispatches`, payload);
     assert.strictEqual(created.status, 200);

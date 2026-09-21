@@ -69,6 +69,14 @@ export const SHADOW_CSS = `
 .illum-highlight { all: initial; position: fixed; pointer-events: none; border-radius: 3px;
   box-shadow: 0 0 0 1px var(--il-accent-line), 0 0 0 4px var(--il-accent-soft); }
 
+/* ADR-101: a PERSISTENT box per selected section, distinct from the
+   ephemeral hover highlight above -- a reader building a multi-section
+   selection has to be able to see what is already in it after the pointer
+   has moved on. Solid rather than soft, so the two never read as the same
+   state at a glance. */
+.illum-selected { all: initial; position: fixed; pointer-events: none; border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--il-accent-line); background: var(--il-accent-soft); }
+
 /* The rail's "show me where this is" flash. The only animation in the
    artifact, and it ends -- a persistent marker here would compete with the
    artifact's own content for attention. */

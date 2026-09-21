@@ -73,7 +73,7 @@ test("buildDismissFindingPayload('abc123') returns {protocol: DISMISS_PROTOCOL_V
 test('postTypedIntent posts an illuminate:queuePrompt message carrying the typed intent payload verbatim, to the wildcard target origin', () => {
   const fake = installFakeParent();
   try {
-    const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null });
+    const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] });
     postTypedIntent('load-token-1', payload);
 
     assert.strictEqual(fake.calls.length, 1);

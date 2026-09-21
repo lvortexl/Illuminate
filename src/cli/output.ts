@@ -116,12 +116,20 @@ function truncateForSummary(text: string, maxLen: number): string {
  * there is no anchor path to show, so the element's text is the closest
  * thing to "what this dispatch is about"). */
 function describeDispatchSubject(envelope: DispatchEnvelope): string {
-  if (envelope.source) {
-    const range = envelope.source.range;
+  // ADR-102: a dispatch can carry several selected sections. The first one
+  // names the line, and the rest are counted rather than listed -- a summary
+  // line that grows with the selection stops being a summary.
+  const first = envelope.targets[0];
+  if (first === undefined) return '(nothing selected)';
+  const more = envelope.targets.length - 1;
+  const suffix = more > 0 ? ` (+${String(more)} more)` : '';
+  const budget = 60 - suffix.length;
+  if (first.source) {
+    const range = first.source.range;
     const rangeSuffix = range ? `#L${String(range.startLine)}-L${String(range.endLine)}` : '';
-    return truncateForSummary(`${envelope.source.path}${rangeSuffix}`, 60);
+    return `${truncateForSummary(`${first.source.path}${rangeSuffix}`, budget)}${suffix}`;
   }
-  return truncateForSummary(envelope.element.text, 60);
+  return `${truncateForSummary(first.element.text, budget)}${suffix}`;
 }
 
 /** Splits a human-written field into printable lines. Empty and absent are

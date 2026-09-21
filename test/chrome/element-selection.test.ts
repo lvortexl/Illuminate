@@ -114,10 +114,9 @@ test('a typed intent is never readable as a selection', () => {
     type: 'illuminate:queuePrompt',
     artifact_load_token: LOAD_TOKEN,
     payload: {
-      protocol: 'illuminate.intent/1',
+      protocol: 'illuminate.intent/2',
       intent: 'explain',
-      element: VALID_ELEMENT,
-      anchor: VALID_ANCHOR,
+      element: VALID_ELEMENT, anchor: VALID_ANCHOR,
       depth: 1,
       parent_dispatch: null,
       learnerNote: null,

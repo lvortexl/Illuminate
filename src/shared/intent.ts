@@ -18,7 +18,7 @@
  * the Node CLI and the browser SDK (mirrors protocol.ts's own constraint).
  */
 
-export const INTENT_PROTOCOL_VERSION = 'illuminate.intent/1' as const;
+export const INTENT_PROTOCOL_VERSION = 'illuminate.intent/2' as const;
 
 /**
  * Exactly the five intents ROUT-01 and ROADMAP.md Phase 4's success
@@ -84,13 +84,28 @@ export interface IntentAnchor {
   readonly anchorHash: string | null;
 }
 
+/** One selected section: the element as addressed in the artifact, plus the
+ * anchor read off it (or `null` when it carries no `data-src`).
+ *
+ * ADR-102: a payload carries a LIST of these rather than one element and one
+ * anchor, because a reader can select several sections and ask about them
+ * together. Keeping `element`/`anchor` as a "primary" beside the list would
+ * be two sources of truth for the same fact, and every consumer would have
+ * to know which to trust. */
+export interface IntentTarget {
+  readonly element: IntentElement;
+  /** Required (not optional) -- this file's own convention: a caller must
+   * choose null explicitly, never omit the field. */
+  readonly anchor: IntentAnchor | null;
+}
+
 export interface TypedIntentPayload {
   readonly protocol: typeof INTENT_PROTOCOL_VERSION;
   readonly intent: Intent;
-  readonly element: IntentElement;
-  /** Required (not optional) -- see this task's behavior spec: a caller
-   * must choose null explicitly, never omit the field. */
-  readonly anchor: IntentAnchor | null;
+  /** Never empty: a payload with nothing selected is not a request. Ordered
+   * as the reader selected them, so an agent reading "the first section"
+   * means what the reader meant. */
+  readonly targets: readonly IntentTarget[];
   /** Reserved for Phase 7's progressive depth ladder (EDU-05). Phase 4
    * always sends 1 -- there is no card chain yet to deepen. */
   readonly depth: number;
@@ -148,8 +163,10 @@ export interface IntentAttachment {
 
 export function buildTypedIntentPayload(input: {
   intent: Intent;
-  element: IntentElement;
-  anchor: IntentAnchor | null;
+  /** ADR-102: the selected sections, in selection order. Deliberately has no
+   * single-element convenience overload -- one shape, so every call site is
+   * visibly a list and none of them can drift back to assuming one. */
+  targets: readonly IntentTarget[];
   /** Defaults to 1 -- existing Phase 4/6 call sites that never pass this
    * keep producing exactly the same payload shape they always have. */
   depth?: number;
@@ -165,8 +182,7 @@ export function buildTypedIntentPayload(input: {
   return {
     protocol: INTENT_PROTOCOL_VERSION,
     intent: input.intent,
-    element: input.element,
-    anchor: input.anchor,
+    targets: input.targets,
     depth: input.depth ?? 1,
     parent_dispatch: input.parent_dispatch ?? null,
     learnerNote: input.learnerNote ?? null,

@@ -45,7 +45,11 @@ const ACTIVE_DISPATCH_STATUSES: readonly DispatchStatus[] = ['open', 'delivered'
  * string for them and the key is otherwise unchanged from before.
  */
 export function computeDedupeKey(envelope: DispatchEnvelope): string {
-  const raw = `${envelope.element.uid}:${envelope.intent}:${envelope.source?.content ?? ''}:${envelope.learnerNote ?? ''}`;
+  // ADR-102: every target contributes, in order. Keying on the first target
+  // alone would make "explain A" and "explain A+B" collide, so selecting a
+  // second section and re-asking would silently return the first answer.
+  const selection = envelope.targets.map((t) => `${t.element.uid}|${t.source?.content ?? ''}`).join('~');
+  const raw = `${selection}:${envelope.intent}:${envelope.learnerNote ?? ''}`;
   return createHash('sha256').update(raw).digest('hex').slice(0, 16);
 }
 

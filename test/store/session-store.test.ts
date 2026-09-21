@@ -247,14 +247,13 @@ test('a round-trip through writeAtomic/JSON.parse preserves all four Phase-6 fie
       dispatches: {
         'dispatch-a': {
           envelope: {
-            protocol: 'illuminate.dispatch/1',
+            protocol: 'illuminate.dispatch/2',
             dispatch_id: 'dispatch-a',
             intent: 'explain',
             role: 'tutor',
             model_tier: 'haiku',
             deadline_ms: 30000,
-            element: { uid: 'e1', selector: '#main', tag: 'p', text: 'hello', prefixContext: null, suffixContext: null },
-            source: null,
+            targets: [{ element: { uid: 'e1', selector: '#main', tag: 'p', text: 'hello', prefixContext: null, suffixContext: null }, source: null }],
             return_to: 'illuminate answer dispatch-a',
             return_contract: 'pipe markdown to stdin',
             tools: [],

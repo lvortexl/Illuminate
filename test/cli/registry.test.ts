@@ -26,10 +26,10 @@ test('COMMANDS: every summary is non-empty and ASCII-only', () => {
   }
 });
 
-test('PLAYBOOKS has exactly 4 entries: anchors, intents, stop, dispatches', () => {
-  assert.strictEqual(PLAYBOOKS.length, 4);
+test('PLAYBOOKS has exactly 5 entries: anchors, intents, stop, dispatches, attach', () => {
+  assert.strictEqual(PLAYBOOKS.length, 5);
   const ids = PLAYBOOKS.map((p) => p.id);
-  assert.deepStrictEqual(ids, ['anchors', 'intents', 'stop', 'dispatches']);
+  assert.deepStrictEqual(ids, ['anchors', 'intents', 'stop', 'dispatches', 'attach']);
 });
 
 test('PLAYBOOKS has no duplicate ids', () => {

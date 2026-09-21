@@ -61,8 +61,9 @@ export interface QueuedNote {
 export interface RailTarget {
   readonly uid: string;
   readonly label: string;
-  readonly element: Readonly<Record<string, unknown>>;
-  readonly anchor: Readonly<Record<string, unknown>> | null;
+  /** ADR-102: the whole selection this queued note is about, not just the
+   * section the row is named after. */
+  readonly targets: readonly Readonly<Record<string, unknown>>[];
   /** Already uploaded: ids, never bytes. The rail holds these only to pass
    * them back on send and to show a count on the queued row. */
   readonly attachments: readonly { readonly id: string; readonly mediaType: string }[];

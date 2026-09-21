@@ -49,15 +49,21 @@ export function buildFollowUpPayload(
 
   return buildTypedIntentPayload({
     intent: action === 'deeper' ? 'deeper' : 'explain',
-    element: {
-      uid,
-      selector: snapshot.structuralPath,
-      tag: element.tagName.toLowerCase(),
-      text: snapshot.textContent,
-      prefixContext: snapshot.prefixContext,
-      suffixContext: snapshot.suffixContext,
-    },
-    anchor,
+    // A follow-up is always about the ONE card being deepened, so it is a
+    // single-target payload even though the shape is a list (ADR-102).
+    targets: [
+      {
+        element: {
+          uid,
+          selector: snapshot.structuralPath,
+          tag: element.tagName.toLowerCase(),
+          text: snapshot.textContent,
+          prefixContext: snapshot.prefixContext,
+          suffixContext: snapshot.suffixContext,
+        },
+        anchor,
+      },
+    ],
     depth: action === 'deeper' ? latestEntry.depth + 1 : latestEntry.depth,
     parent_dispatch: latestEntry.dispatchId,
     learnerNote: action === 'self-explain' ? learnerNote : null,

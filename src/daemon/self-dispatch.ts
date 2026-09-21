@@ -203,28 +203,47 @@ function buildPrompt(envelope: DispatchEnvelope): string {
   const parts: string[] = [];
 
   parts.push(`You are acting as the "${envelope.role}" role for a code-review tool.`);
-  parts.push(`## The claim being reviewed
 
-${envelope.element.text}`);
-
-  if (envelope.source && envelope.source.content !== null) {
-    const { path, rev, range } = envelope.source;
-    const where = range === null ? path : `${path} lines ${String(range.startLine)}-${String(range.endLine)}`;
-    const at = rev === null ? '' : ` (at commit ${rev})`;
-    parts.push(`## The cited source: ${where}${at}
-
-${envelope.source.content}`);
-  } else {
-    // An honest statement of what is missing beats letting the model assume
-    // it simply was not given the file and ask for it.
+  // ADR-102: one dispatch can carry several selected sections. Each is
+  // presented with its OWN source and its own resolution status, numbered, so
+  // an answer can speak about section 2 specifically. A single merged blob
+  // would make "the source" ambiguous the moment two sections cite different
+  // files -- and would let a section whose source failed to resolve borrow
+  // the credibility of one whose source did.
+  const multiple = envelope.targets.length > 1;
+  if (multiple) {
     parts.push(
-      `## The cited source
-
-Not available -- the citation could not be resolved ` +
-        `(status: ${envelope.source?.status ?? 'no anchor on this element'}). ` +
-        `Answer from the claim alone and say clearly that you could not read the source.`,
+      `The reader selected ${String(envelope.targets.length)} sections and is asking about them together. ` +
+        `Address each one, and say plainly if they do not support a single answer.`,
     );
   }
+
+  envelope.targets.forEach((target, i) => {
+    const label = multiple ? ` ${String(i + 1)}` : '';
+    parts.push(`## The claim being reviewed${label}
+
+${target.element.text}`);
+
+    const source = target.source;
+    if (source && source.content !== null) {
+      const { path, rev, range } = source;
+      const where = range === null ? path : `${path} lines ${String(range.startLine)}-${String(range.endLine)}`;
+      const at = rev === null ? '' : ` (at commit ${rev})`;
+      parts.push(`## The cited source${label}: ${where}${at}
+
+${source.content}`);
+    } else {
+      // An honest statement of what is missing beats letting the model assume
+      // it simply was not given the file and ask for it.
+      parts.push(
+        `## The cited source${label}
+
+Not available -- the citation could not be resolved ` +
+          `(status: ${source?.status ?? 'no anchor on this element'}). ` +
+          `Answer from the claim alone and say clearly that you could not read the source.`,
+      );
+    }
+  });
 
   parts.push(`## Your task
 

@@ -26,7 +26,7 @@ import { createActivePolls, createClaudeOnPathProbe } from './active-polls.ts';
 import { maybeSelfDispatch } from './self-dispatch.ts';
 import type { SelfDispatchSpawnFn } from './self-dispatch.ts';
 import { isIntent, buildTypedIntentPayload } from '../shared/intent.ts';
-import type { TypedIntentPayload, IntentElement, IntentAnchor, IntentAttachment } from '../shared/intent.ts';
+import type { TypedIntentPayload, IntentElement, IntentAnchor, IntentAttachment, IntentTarget } from '../shared/intent.ts';
 import { AnnotationStoreFile, appendCardEntry, snapshotFromDispatchElement } from '../store/annotation-store.ts';
 import type { CardThreadEntry } from '../store/annotation-store.ts';
 import { FindingsStoreFile, dismissFinding } from '../store/findings-store.ts';
@@ -206,8 +206,17 @@ function parseTypedIntentPayload(body: unknown): TypedIntentPayload {
   if (typeof body !== 'object' || body === null) throw new Error('body must be an object');
   const b = body as Record<string, unknown>;
   if (typeof b.intent !== 'string' || !isIntent(b.intent)) throw new Error('intent must be a valid Intent');
-  const element = parseIntentElement(b.element);
-  const anchor = parseIntentAnchor(b.anchor);
+  // ADR-102: the wire carries a LIST of selected sections. The protocol
+  // version moved with the shape rather than accepting both forms -- a
+  // parser that silently normalizes a legacy single element is exactly the
+  // "two ways to say the same thing" this change exists to remove.
+  if (!Array.isArray(b.targets)) throw new Error('targets must be an array');
+  if (b.targets.length === 0) throw new Error('targets must not be empty');
+  const targets: IntentTarget[] = b.targets.map((raw) => {
+    if (typeof raw !== 'object' || raw === null) throw new Error('each target must be an object');
+    const t = raw as Record<string, unknown>;
+    return { element: parseIntentElement(t.element), anchor: parseIntentAnchor(t.anchor) };
+  });
   if (b.depth !== undefined && typeof b.depth !== 'number') throw new Error('depth must be a number');
   if (b.parent_dispatch !== undefined && b.parent_dispatch !== null && typeof b.parent_dispatch !== 'string') {
     throw new Error('parent_dispatch must be a string or null');
@@ -236,8 +245,7 @@ function parseTypedIntentPayload(body: unknown): TypedIntentPayload {
   }
   return buildTypedIntentPayload({
     intent: b.intent,
-    element,
-    anchor,
+    targets,
     depth: b.depth as number | undefined,
     parent_dispatch: b.parent_dispatch as string | null | undefined,
     learnerNote: b.learnerNote as string | null | undefined,
@@ -759,13 +767,21 @@ export function createDaemonServer(
       decidingLines: entry.answer.decidingLines,
       model: entry.answer.model,
       tier: entry.answer.tier,
-      source: entry.envelope.source,
+      source: entry.envelope.targets[0]?.source ?? null,
       answeredAt: entry.answer.answeredAt,
     };
+    const primaryTarget = entry.envelope.targets[0];
+    if (primaryTarget === undefined) return;
     await new AnnotationStoreFile(artifactPath).mutate((current) => ({
       next: appendCardEntry(current, {
         parentDispatchId: entry.envelope.parent_dispatch,
-        snapshot: snapshotFromDispatchElement(entry.envelope.element, entry.envelope.source),
+        // A card is rendered at ONE place in the artifact, so it is anchored
+        // to the first selected section; the rest of the selection reached
+        // the agent on the envelope and is reflected in the answer text.
+        // `targets` is never empty (the parser rejects an empty list), but
+        // the index is guarded rather than asserted -- a card is not worth
+        // crashing the answer-ingest path over.
+        snapshot: snapshotFromDispatchElement(primaryTarget.element, primaryTarget.source),
         entry: cardEntry,
       }),
       result: undefined,
@@ -837,8 +853,8 @@ export function createDaemonServer(
       // learnerNote (only a self-explanation flow ever sets that field --
       // see shared/intent.ts's own doc comment), so the two never compete
       // for the same dispatch. Neither reads or is affected by the other.
-      const isVerifyShortcut = payload.intent === 'verify' && isUngroundable(ledgerEnvelope.source);
-      const isSelfExplainShortcut = payload.learnerNote !== null && isUngroundable(ledgerEnvelope.source);
+      const isVerifyShortcut = payload.intent === 'verify' && isUngroundable(ledgerEnvelope.targets);
+      const isSelfExplainShortcut = payload.learnerNote !== null && isUngroundable(ledgerEnvelope.targets);
       if (isVerifyShortcut || isSelfExplainShortcut) {
         // The deterministic EDU-06/EDU-07 shortcut -- never self-dispatched,
         // never handed to a real harness. A second, distinct `store.mutate`

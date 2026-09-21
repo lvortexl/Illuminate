@@ -17,10 +17,9 @@ const VALID_ANCHOR = { src: 'src/main.ts#L1-L5', rev: 'abc123', anchorHash: 'dea
 
 function validPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    protocol: 'illuminate.intent/1',
+    protocol: 'illuminate.intent/2',
     intent: 'explain',
-    element: VALID_ELEMENT,
-    anchor: VALID_ANCHOR,
+    targets: [{ element: VALID_ELEMENT, anchor: VALID_ANCHOR }],
     depth: 1,
     parent_dispatch: null,
     learnerNote: null,
@@ -42,10 +41,9 @@ function validMessage(overrides: Record<string, unknown> = {}): Record<string, u
 test('extracts a well-formed message with a full anchor', () => {
   const result = extractTypedIntent(validMessage(), LOAD_TOKEN);
   assert.deepStrictEqual(result, {
-    protocol: 'illuminate.intent/1',
+    protocol: 'illuminate.intent/2',
     intent: 'explain',
-    element: VALID_ELEMENT,
-    anchor: VALID_ANCHOR,
+    targets: [{ element: VALID_ELEMENT, anchor: VALID_ANCHOR }],
     depth: 1,
     parent_dispatch: null,
     learnerNote: null,
@@ -55,13 +53,12 @@ test('extracts a well-formed message with a full anchor', () => {
 });
 
 test('extracts a well-formed message with a null anchor (ANCH-08 unanchored element)', () => {
-  const message = validMessage({ payload: validPayload({ anchor: null }) });
+  const message = validMessage({ payload: validPayload({ targets: [{ element: VALID_ELEMENT, anchor: null }] }) });
   const result = extractTypedIntent(message, LOAD_TOKEN);
   assert.deepStrictEqual(result, {
-    protocol: 'illuminate.intent/1',
+    protocol: 'illuminate.intent/2',
     intent: 'explain',
-    element: VALID_ELEMENT,
-    anchor: null,
+    targets: [{ element: VALID_ELEMENT, anchor: null }],
     depth: 1,
     parent_dispatch: null,
     learnerNote: null,
@@ -131,49 +128,49 @@ test('returns null when payload.intent is missing or not a string', () => {
   assert.strictEqual(extractTypedIntent(validMessage({ payload: validPayload({ intent: 5 }) }), LOAD_TOKEN), null);
 });
 
-test('returns null when payload.element is missing', () => {
-  const message = validMessage({ payload: validPayload({ element: undefined }) });
+test('returns null when the target element is missing', () => {
+  const message = validMessage({ payload: validPayload({ targets: [{ element: undefined, anchor: VALID_ANCHOR }] }) });
   assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null);
 });
 
-test('returns null when payload.element is not an object', () => {
-  const message = validMessage({ payload: validPayload({ element: 'nope' }) });
+test('returns null when the target element is not an object', () => {
+  const message = validMessage({ payload: validPayload({ targets: [{ element: 'nope', anchor: VALID_ANCHOR }] }) });
   assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null);
 });
 
-test('returns null when payload.element is missing a required string field', () => {
+test('returns null when the target element is missing a required string field', () => {
   for (const field of ['uid', 'selector', 'tag', 'text']) {
     const element = { ...VALID_ELEMENT, [field]: undefined };
-    const message = validMessage({ payload: validPayload({ element }) });
+    const message = validMessage({ payload: validPayload({ targets: [{ element, anchor: VALID_ANCHOR }] }) });
     assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null, `missing element.${field} should fail`);
   }
 });
 
-test('returns null when payload.element has a wrong-typed field', () => {
+test('returns null when the target element has a wrong-typed field', () => {
   const element = { ...VALID_ELEMENT, uid: 123 };
-  const message = validMessage({ payload: validPayload({ element }) });
+  const message = validMessage({ payload: validPayload({ targets: [{ element, anchor: VALID_ANCHOR }] }) });
   assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null);
 });
 
-test('returns null when payload.anchor is present but malformed (missing src)', () => {
+test('returns null when the target anchor is present but malformed (missing src)', () => {
   const anchor = { rev: 'abc123', anchorHash: 'deadbeef' };
-  const message = validMessage({ payload: validPayload({ anchor }) });
+  const message = validMessage({ payload: validPayload({ targets: [{ element: VALID_ELEMENT, anchor }] }) });
   assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null);
 });
 
-test('returns null when payload.anchor.rev or anchor.anchorHash has the wrong type', () => {
+test('returns null when the target anchor.rev or anchor.anchorHash has the wrong type', () => {
   const withBadRev = { ...VALID_ANCHOR, rev: 42 };
-  assert.strictEqual(extractTypedIntent(validMessage({ payload: validPayload({ anchor: withBadRev }) }), LOAD_TOKEN), null);
+  assert.strictEqual(extractTypedIntent(validMessage({ payload: validPayload({ targets: [{ element: VALID_ELEMENT, anchor: withBadRev }] }) }), LOAD_TOKEN), null);
 
   const withBadHash = { ...VALID_ANCHOR, anchorHash: false };
   assert.strictEqual(
-    extractTypedIntent(validMessage({ payload: validPayload({ anchor: withBadHash }) }), LOAD_TOKEN),
+    extractTypedIntent(validMessage({ payload: validPayload({ targets: [{ element: VALID_ELEMENT, anchor: withBadHash }] }) }), LOAD_TOKEN),
     null,
   );
 });
 
-test('returns null when payload.anchor is not an object and not null', () => {
-  const message = validMessage({ payload: validPayload({ anchor: 'not-an-object' }) });
+test('returns null when the target anchor is not an object and not null', () => {
+  const message = validMessage({ payload: validPayload({ targets: [{ element: VALID_ELEMENT, anchor: 'not-an-object' }] }) });
   assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null);
 });
 
@@ -206,25 +203,25 @@ test("extracts successfully when payload.learnerNote is a real string (EDU-06's 
   assert.strictEqual(result.learnerNote, "the reader's own words");
 });
 
-test('returns null when payload.element.prefixContext is present but not a string or null', () => {
+test('returns null when the target element.prefixContext is present but not a string or null', () => {
   const element = { ...VALID_ELEMENT, prefixContext: 42 };
-  const message = validMessage({ payload: validPayload({ element }) });
+  const message = validMessage({ payload: validPayload({ targets: [{ element, anchor: VALID_ANCHOR }] }) });
   assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null);
 });
 
-test('returns null when payload.element.suffixContext is present but not a string or null', () => {
+test('returns null when the target element.suffixContext is present but not a string or null', () => {
   const element = { ...VALID_ELEMENT, suffixContext: 42 };
-  const message = validMessage({ payload: validPayload({ element }) });
+  const message = validMessage({ payload: validPayload({ targets: [{ element, anchor: VALID_ANCHOR }] }) });
   assert.strictEqual(extractTypedIntent(message, LOAD_TOKEN), null);
 });
 
 test('extracts successfully when element.prefixContext/suffixContext are real, non-null strings', () => {
   const element = { ...VALID_ELEMENT, prefixContext: 'before this element, ', suffixContext: ', after it' };
-  const message = validMessage({ payload: validPayload({ element }) });
+  const message = validMessage({ payload: validPayload({ targets: [{ element, anchor: VALID_ANCHOR }] }) });
   const result = extractTypedIntent(message, LOAD_TOKEN);
   assert.ok(result);
-  assert.strictEqual(result.element.prefixContext, 'before this element, ');
-  assert.strictEqual(result.element.suffixContext, ', after it');
+  assert.strictEqual(result.targets[0]!.element.prefixContext, 'before this element, ');
+  assert.strictEqual(result.targets[0]!.element.suffixContext, ', after it');
 });
 
 test('returns null (no throw) when data itself is not an object -- null, undefined, string, number, array', () => {
@@ -239,10 +236,9 @@ test('returns null (no throw) for a hostile, deeply-malformed shape -- the funct
     type: 'illuminate:queuePrompt',
     artifact_load_token: LOAD_TOKEN,
     payload: {
-      protocol: 'illuminate.intent/1',
+      protocol: 'illuminate.intent/2',
       intent: 'explain',
-      element: null,
-      anchor: 12345,
+      targets: [{ element: null, anchor: 12345 }],
       depth: 'not-a-number',
       parent_dispatch: { nested: 'object' },
     },

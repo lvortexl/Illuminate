@@ -105,7 +105,7 @@ test('illuminate:dispatchCreated arrives inside the real sandboxed iframe shortl
 }) => {
   const frame = await openFixtureChromeShell(page);
 
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 

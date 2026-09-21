@@ -19,14 +19,13 @@ const NOW = '2026-01-01T00:10:00.000Z';
  * makeEnvelope -- each id gets its own element uid by default. */
 function makeEnvelope(id: string, overrides: Partial<DispatchEnvelope> = {}): DispatchEnvelope {
   return {
-    protocol: 'illuminate.dispatch/1',
+    protocol: 'illuminate.dispatch/2',
     dispatch_id: id,
     intent: 'explain',
     role: 'tutor',
     model_tier: 'haiku',
     deadline_ms: 30000,
-    element: { uid: `elem-${id}`, selector: `#${id}`, tag: 'p', text: 'some text', prefixContext: null, suffixContext: null },
-    source: null,
+    targets: [{ element: { uid: `elem-${id}`, selector: `#${id}`, tag: 'p', text: 'some text', prefixContext: null, suffixContext: null }, source: null }],
     return_to: `illuminate answer --dispatch ${id} --port 4319 --stdin`,
     return_contract: 'run the command above, piping your markdown answer to stdin',
     tools: [],

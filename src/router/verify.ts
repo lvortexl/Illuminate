@@ -15,7 +15,7 @@
  * itself is.
  */
 
-import type { DispatchSource } from './types.ts';
+import type { DispatchTarget } from './types.ts';
 
 /**
  * True when there is no readable resolved content to check a claim
@@ -36,6 +36,10 @@ import type { DispatchSource } from './types.ts';
  * is likewise still groundable; staleness and groundability are different
  * axes, and this function must never conflate them.
  */
-export function isUngroundable(source: DispatchSource | null): boolean {
-  return source === null || source.content === null;
+export function isUngroundable(targets: readonly DispatchTarget[]): boolean {
+  // ADR-103: ungroundable only when EVERY selected section is. Refusing the
+  // whole dispatch because one of five sections is unanchored would throw
+  // away four readable files -- the same over-strictness ADR-001 removed.
+  // An empty selection is vacuously ungroundable: there is nothing to read.
+  return targets.every((t) => t.source === null || t.source.content === null);
 }

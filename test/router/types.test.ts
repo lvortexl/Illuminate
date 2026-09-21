@@ -19,14 +19,13 @@ const element: DispatchElement = {
 
 function validEnvelope(): DispatchEnvelope {
   return {
-    protocol: 'illuminate.dispatch/1',
+    protocol: 'illuminate.dispatch/2',
     dispatch_id: 'd1',
     intent: 'explain',
     role: 'tutor',
     model_tier: 'haiku',
     deadline_ms: 30000,
-    element,
-    source: null,
+    targets: [{ element, source: null }],
     return_to: 'illuminate answer d1',
     return_contract: 'run the command above, piping your markdown answer to stdin',
     tools: [],

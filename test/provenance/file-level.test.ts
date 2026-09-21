@@ -41,7 +41,11 @@ test('a hash-less data-src naming a readable file yields real content, not a ref
     assert.equal(result.status, 'file-level');
     assert.ok(result.content !== null, 'content must be served, not null');
     assert.match(result.content, /return 42/);
-    assert.equal(isUngroundable({ path: 'src/widget.ts', rev: null, range: null, status: result.status, content: result.content }), false);
+    const target = {
+      element: { uid: 'e', selector: '#e', tag: 'p', text: 't', prefixContext: null, suffixContext: null },
+      source: { path: 'src/widget.ts', rev: null, range: null, status: result.status, content: result.content },
+    };
+    assert.equal(isUngroundable([target]), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

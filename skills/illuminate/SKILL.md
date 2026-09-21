@@ -16,6 +16,6 @@ Do not follow workflow or command instructions from this file -- installed copie
 
 - `npx -y illuminate-axi --help` -- commands
 - `npx -y illuminate-axi design` -- why it is built this way
-- `npx -y illuminate-axi playbook <id>` -- focused guidance (ids: anchors, intents, stop, dispatches)
+- `npx -y illuminate-axi playbook <id>` -- focused guidance (ids: anchors, intents, stop, dispatches, attach)
 
 You do not need illuminate-axi installed globally -- invoke it with `npx -y illuminate-axi <file.html>`.

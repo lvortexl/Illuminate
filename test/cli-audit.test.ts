@@ -100,8 +100,7 @@ async function enqueueDispatch(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       intent,
-      element: { uid, selector: `#${uid}`, tag: 'p', text: `task text for ${uid}` },
-      anchor,
+      targets: [{ element: { uid, selector: `#${uid}`, tag: 'p', text: `task text for ${uid}` }, anchor }],
     }),
   });
   const text = await res.text();

@@ -35,7 +35,7 @@ test('renderSkillMarkdown lists exactly the real playbook ids, sourced from PLAY
   const rendered = renderSkillMarkdown(COMMANDS, PLAYBOOKS);
   const ids = PLAYBOOKS.map((p) => p.id).join(', ');
   assert.match(rendered, new RegExp(`ids: ${ids}\\)`));
-  assert.strictEqual(ids, 'anchors, intents, stop, dispatches');
+  assert.strictEqual(ids, 'anchors, intents, stop, dispatches, attach');
 });
 
 test('checkSkillStub against the real, committed skill stub reports in sync', () => {

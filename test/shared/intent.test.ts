@@ -40,12 +40,11 @@ test('isIntent rejects the empty string', () => {
 // --- 3. buildTypedIntentPayload exact shape ---
 
 test('buildTypedIntentPayload returns the exact fixed-default shape', () => {
-  const payload = buildTypedIntentPayload({ intent: 'explain', element, anchor: null });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element, anchor: null }] });
   assert.deepStrictEqual(payload, {
-    protocol: 'illuminate.intent/1',
+    protocol: 'illuminate.intent/2',
     intent: 'explain',
-    element,
-    anchor: null,
+    targets: [{ element, anchor: null }],
     depth: 1,
     parent_dispatch: null,
     learnerNote: null,
@@ -57,8 +56,7 @@ test('buildTypedIntentPayload returns the exact fixed-default shape', () => {
 test('buildTypedIntentPayload returns the exact values passed for depth/parent_dispatch/learnerNote, not the defaults', () => {
   const payload = buildTypedIntentPayload({
     intent: 'explain',
-    element,
-    anchor: null,
+    targets: [{ element, anchor: null }],
     depth: 2,
     parent_dispatch: 'd1',
     learnerNote: 'my guess',
@@ -73,7 +71,7 @@ test('buildTypedIntentPayload returns the exact values passed for depth/parent_d
 // --- 4. Pure function, no hidden state ---
 
 test('buildTypedIntentPayload called twice with the same input produces deep-equal, not just same-reference, output', () => {
-  const input = { intent: 'verify' as const, element, anchor: null };
+  const input = { intent: 'verify' as const, targets: [{ element, anchor: null }] };
   const first = buildTypedIntentPayload(input);
   const second = buildTypedIntentPayload(input);
   assert.notStrictEqual(first, second);
@@ -81,7 +79,7 @@ test('buildTypedIntentPayload called twice with the same input produces deep-equ
 });
 
 test('protocol exposes an explicit version for future compatibility checks', () => {
-  assert.strictEqual(INTENT_PROTOCOL_VERSION, 'illuminate.intent/1');
+  assert.strictEqual(INTENT_PROTOCOL_VERSION, 'illuminate.intent/2');
 });
 
 test('a real IntentAnchor round-trips through buildTypedIntentPayload unchanged', () => {
@@ -90,17 +88,19 @@ test('a real IntentAnchor round-trips through buildTypedIntentPayload unchanged'
   // compile error, so this literal must stay a real, current example of the
   // type it asserts against.
   const anchor: IntentAnchor = { src: 'src/foo.ts', rev: 'abc123', anchorHash: 'abc123def456' };
-  const payload = buildTypedIntentPayload({ intent: 'fix-code', element, anchor });
-  assert.deepStrictEqual(payload.anchor, anchor);
+  const payload = buildTypedIntentPayload({ intent: 'fix-code', targets: [{ element, anchor }] });
+  assert.deepStrictEqual(payload.targets[0]!.anchor, anchor);
 });
 
-// --- 5. Compile-time: anchor is required, never omittable ---
-// @ts-expect-error — anchor is required; omitting it must fail to type-check
-const _missingAnchor: TypedIntentPayload = {
-  protocol: 'illuminate.intent/1',
+// --- 5. Compile-time: targets is required, never omittable ---
+// ADR-102: the field this guards renamed from `anchor` to `targets`, but the
+// guarantee is the same one -- a payload that names nothing to act on must
+// not type-check.
+// @ts-expect-error — targets is required; omitting it must fail to type-check
+const _missingTargets: TypedIntentPayload = {
+  protocol: 'illuminate.intent/2',
   intent: 'explain',
-  element,
   depth: 1,
   parent_dispatch: null,
 };
-void _missingAnchor;
+void _missingTargets;

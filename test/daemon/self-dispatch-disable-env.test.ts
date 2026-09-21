@@ -136,8 +136,7 @@ async function enqueueDispatch(port: number, key: string): Promise<void> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       intent: 'explain',
-      element: { uid: 'u1', selector: '#u1', tag: 'p', text: 'task text for self-dispatch-disable-env' },
-      anchor: null,
+      targets: [{ element: { uid: 'u1', selector: '#u1', tag: 'p', text: 'task text for self-dispatch-disable-env' }, anchor: null }],
     }),
   });
   assert.strictEqual(res.status, 200, `enqueue failed: ${await res.text()}`);

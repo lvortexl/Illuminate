@@ -62,7 +62,7 @@ test.afterAll(async () => {
 });
 
 async function verifyClick(page: Page, frame: FrameLocator, selector: string): Promise<void> {
-  await frame.locator(selector).click();
+  await frame.locator(selector).click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Verify' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 }
@@ -72,7 +72,7 @@ async function verifyClick(page: Page, frame: FrameLocator, selector: string): P
 interface PollBody {
   readonly status: string;
   readonly dispatches: readonly {
-    readonly source: { readonly status: string; readonly content: string | null } | null;
+    readonly targets: readonly { readonly source: { readonly status: string; readonly content: string | null } | null }[];
   }[];
 }
 
@@ -92,7 +92,7 @@ test('a hash-less section hands the answering agent the real file content', asyn
 
   expect(body.status).toBe('dispatch');
   expect(body.dispatches.length).toBeGreaterThan(0);
-  const source = body.dispatches[0]?.source ?? null;
+  const source = body.dispatches[0]?.targets[0]?.source ?? null;
   expect(source).not.toBeNull();
   // The tier is named on the envelope, so a working-tree read can never be
   // mistaken in the record for a revision-pinned one (ADR-003).

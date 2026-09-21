@@ -53,21 +53,20 @@ let envelopeCounter = 0;
 function makeEnvelope(id: string): DispatchEnvelope {
   envelopeCounter += 1;
   return {
-    protocol: 'illuminate.dispatch/1',
+    protocol: 'illuminate.dispatch/2',
     dispatch_id: id,
     intent: 'explain',
     role: 'tutor',
     model_tier: 'haiku',
     deadline_ms: 30000,
-    element: {
+    targets: [{ element: {
       uid: `elem-${id}-${envelopeCounter}`,
       selector: `#${id}`,
       tag: 'p',
       text: 'some text',
       prefixContext: null,
       suffixContext: null,
-    },
-    source: null,
+    }, source: null }],
     return_to: `illuminate answer ${id}`,
     return_contract: 'run the command above, piping your markdown answer to stdin',
     tools: [],

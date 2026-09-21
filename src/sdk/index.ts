@@ -9,6 +9,7 @@ import { createFindingsController } from './findings-render.ts';
 import { deeperCardAction } from './card-action-deeper.ts';
 import { selfExplainCardAction } from './card-action-self-explain.ts';
 import { parseSyncAnnotations, parseDispatchCreated, parseSyncFindings } from './protocol-in.ts';
+import type { IntentElement } from '../shared/intent.ts';
 
 /** Shared shape check for the two inbound messages below that are small
  * enough not to warrant their own parser in protocol-in.ts. */
@@ -77,6 +78,70 @@ if (result) {
    * or whatever had focus before the click for the mouse path (often
    * nothing focusable, i.e. effectively document.body). Opening a second
    * picker destroys any picker already open -- at most one is ever live. */
+  // --- ADR-101: the selection. Left-click toggles membership; right-click
+  // acts on whatever is in here. A Set, not an array, because toggling is the
+  // only mutation and membership is the only question asked of it. Insertion
+  // order is preserved by Set, which is what keeps "the first section" in an
+  // answer meaning the one the reader picked first. ---
+  const selection = new Set<Element>();
+  const selectionBoxes = new Map<Element, HTMLElement>();
+
+  function positionSelectionBoxes(): void {
+    for (const [el, box] of selectionBoxes) {
+      const r = el.getBoundingClientRect();
+      box.style.left = `${r.left}px`;
+      box.style.top = `${r.top}px`;
+      box.style.width = `${r.width}px`;
+      box.style.height = `${r.height}px`;
+    }
+  }
+
+  function toggleSelection(el: Element): void {
+    const existing = selectionBoxes.get(el);
+    if (existing) {
+      existing.remove();
+      selectionBoxes.delete(el);
+      selection.delete(el);
+      return;
+    }
+    selection.add(el);
+    const box = document.createElement('div');
+    box.className = 'illum-selected';
+    shadowRoot.appendChild(box);
+    selectionBoxes.set(el, box);
+    positionSelectionBoxes();
+  }
+
+  function clearSelection(): void {
+    for (const box of selectionBoxes.values()) box.remove();
+    selectionBoxes.clear();
+    selection.clear();
+  }
+
+  /** The element -> payload-target shape, used for every selected section. */
+  function buildTarget(el: Element): { element: IntentElement; anchor: ReturnType<typeof readAnchorAttributes> } {
+    const chain = walkChain(el);
+    const selector = buildSelector(chain);
+    const text = truncateText((el.textContent ?? '').trim());
+    const uid = buildUid(selector, text);
+    const snapshot = computeElementSnapshot(el);
+    elementsByUid.set(uid, el);
+    return {
+      element: {
+        uid,
+        selector,
+        tag: el.tagName.toLowerCase(),
+        text,
+        // Sourced from the same helper reattachment uses, so the context
+        // strings compared in identity.ts's disambiguation tier are
+        // computed identically on both sides.
+        prefixContext: snapshot.prefixContext,
+        suffixContext: snapshot.suffixContext,
+      },
+      anchor: readAnchorAttributes(el.getAttribute.bind(el)),
+    };
+  }
+
   function onElementSelected(clicked: Element, rect: DOMRect, returnFocusTo: HTMLElement | null): void {
     activePicker?.destroy();
     // Retarget to the anchored block the reader clicked INSIDE of. The
@@ -85,37 +150,34 @@ if (result) {
     // `nearestAnchored`. Falls back to the clicked element when nothing above
     // it is anchored.
     const el = nearestAnchored(clicked) ?? clicked;
-    const chain = walkChain(el);
-    const selector = buildSelector(chain);
-    const text = truncateText((el.textContent ?? '').trim());
-    const uid = buildUid(selector, text);
-    const anchor = readAnchorAttributes(el.getAttribute.bind(el));
-    const snapshot = computeElementSnapshot(el);
-    elementsByUid.set(uid, el);
+
+    // ADR-101: act on the SELECTION when the pointed-at section is part of
+    // it. Right-clicking something outside the selection means the reader is
+    // pointing somewhere else, so that one section is the subject and the
+    // existing selection is left alone rather than silently extended.
+    const acting: Element[] = selection.has(el) ? [...selection] : [el];
+    const targets = acting.map(buildTarget);
+    const primary = targets[0];
+    if (primary === undefined) return;
+    const anchor = primary.anchor;
+    const extra = targets.length - 1;
+    const baseLabel = anchor ? anchor.src : `<${primary.element.tag}> ${truncateText(primary.element.text, 48)}`;
 
     activePicker = renderElementComposer(shadowRoot, rect, {
       tag: el.tagName.toLowerCase(),
-      label: anchor ? anchor.src : null,
+      label: extra > 0 ? `${baseLabel} (+${String(extra)} more)` : anchor ? anchor.src : null,
       onSubmit: (submission) => {
         postComposerSubmission(loadToken, {
-          element: {
-            uid,
-            selector,
-            tag: el.tagName.toLowerCase(),
-            text,
-            // Sourced from the same helper reattachment uses, so the context
-            // strings compared in identity.ts's disambiguation tier are
-            // computed identically on both sides.
-            prefixContext: snapshot.prefixContext,
-            suffixContext: snapshot.suffixContext,
-          },
-          anchor,
-          label: anchor ? anchor.src : `<${el.tagName.toLowerCase()}> ${truncateText(text, 48)}`,
+          targets,
+          label: extra > 0 ? `${baseLabel} (+${String(extra)} more)` : baseLabel,
           intent: submission.intent,
           note: submission.note,
           attachments: submission.attachments,
           mode: submission.mode,
         });
+        // The selection has been acted on; leaving it highlighted would make
+        // the next right-click silently re-ask about the same sections.
+        clearSelection();
         activePicker = null;
         returnFocusTo?.focus();
       },
@@ -157,10 +219,42 @@ if (result) {
     true,
   );
 
+  // --- Right-click ACTS (ADR-101). ---
+  //
+  // This was a capture-phase `click` listener, which fired on every left
+  // click anywhere in the artifact: the page margin, a heading, and the
+  // click that ends a text selection all opened the intent picker. Reading
+  // an artifact was not possible without the menu appearing.
+  //
+  // `contextmenu` is the gesture that already means "act on this" everywhere
+  // else, and moving to it frees left-click for selection (see the selection
+  // listener below) rather than spending it on nothing. The browser's own
+  // menu is suppressed, because two menus at one pointer is no better than
+  // one unwanted one.
+  // --- Left-click SELECTS (ADR-101). The gesture the intent picker used to
+  // occupy: it fired on every click anywhere, so reading was impossible.
+  // Now it toggles a section in and out of the selection, and a click that
+  // lands on nothing selectable clears it -- the same "click empty space to
+  // deselect" every file manager has taught. ---
   document.addEventListener(
     'click',
     (e) => {
       if (isOwnUi(e.target)) return;
+      const hit = nearestAnchored(e.target as Element);
+      if (hit === null) {
+        clearSelection();
+        return;
+      }
+      toggleSelection(hit);
+    },
+    true,
+  );
+
+  document.addEventListener(
+    'contextmenu',
+    (e) => {
+      if (isOwnUi(e.target)) return;
+      e.preventDefault();
       const el = e.target as Element;
       // The picker opens at the POINTER, not at the element's own box.
       //
@@ -245,6 +339,7 @@ if (result) {
   positionTriggers();
   function positionEverything(): void {
     positionTriggers();
+    positionSelectionBoxes();
     cardsController.reposition();
   }
   window.addEventListener('scroll', positionEverything, true);

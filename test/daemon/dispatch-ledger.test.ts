@@ -37,14 +37,15 @@ function stateWithSession(): IlluminateState {
  * collision on purpose. */
 function makeEnvelope(id: string, overrides: Partial<DispatchEnvelope> = {}): DispatchEnvelope {
   return {
-    protocol: 'illuminate.dispatch/1',
+    protocol: 'illuminate.dispatch/2',
     dispatch_id: id,
     intent: 'explain',
     role: 'tutor',
     model_tier: 'haiku',
     deadline_ms: 30000,
-    element: { uid: `elem-${id}`, selector: `#${id}`, tag: 'p', text: 'some text', prefixContext: null, suffixContext: null },
-    source: null,
+    targets: [
+      { element: { uid: `elem-${id}`, selector: `#${id}`, tag: 'p', text: 'some text', prefixContext: null, suffixContext: null }, source: null },
+    ],
     return_to: `illuminate answer ${id}`,
     return_contract: 'run the command above, piping your markdown answer to stdin',
     tools: [],
@@ -103,13 +104,13 @@ test('enqueueDispatch dedupes a second envelope with the same (element uid, inte
   // `WORK_IN_FLIGHT` is what makes this the in-flight case rather than the
   // abandoned one -- see the retry tests further down for the difference.
   const state0 = stateWithSession();
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null } }));
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null }, source: null }] }));
   assert.strictEqual(first.result.status, 'ok');
 
   const second = enqueueDispatch(
     first.next,
     KEY,
-    makeEnvelope('d2', { element: { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null } }),
+    makeEnvelope('d2', { targets: [{ element: { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null }, source: null }] }),
     WORK_IN_FLIGHT,
   );
 
@@ -123,19 +124,19 @@ test('enqueueDispatch dedupes a second envelope with the same (element uid, inte
 test('enqueueDispatch dedupes against a DELIVERED entry (still non-terminal, still a duplicate)', () => {
   const state0 = stateWithSession();
   const elem = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: elem }));
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: elem, source: null }] }));
   const drained = drainQueue(first.next, KEY);
   assert.strictEqual(drained.result.status, 'ok');
   assert.strictEqual(drained.next.sessions[KEY]?.dispatches['d1']?.status, 'delivered');
 
-  const second = enqueueDispatch(drained.next, KEY, makeEnvelope('d2', { element: elem }));
+  const second = enqueueDispatch(drained.next, KEY, makeEnvelope('d2', { targets: [{ element: elem, source: null }] }));
   assert.deepStrictEqual(second.result, { status: 'duplicate', dispatchId: 'd1' });
 });
 
 test('enqueueDispatch dedupes against an ANSWERED entry (still non-terminal, still a duplicate)', () => {
   const state0 = stateWithSession();
   const elem = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: elem }));
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: elem, source: null }] }));
   const record = first.next.sessions[KEY];
   assert.ok(record);
   const answeredEntry = record.dispatches['d1'];
@@ -151,14 +152,14 @@ test('enqueueDispatch dedupes against an ANSWERED entry (still non-terminal, sti
     },
   };
 
-  const second = enqueueDispatch(stateWithAnswered, KEY, makeEnvelope('d2', { element: elem }));
+  const second = enqueueDispatch(stateWithAnswered, KEY, makeEnvelope('d2', { targets: [{ element: elem, source: null }] }));
   assert.deepStrictEqual(second.result, { status: 'duplicate', dispatchId: 'd1' });
 });
 
 test('enqueueDispatch does NOT dedupe against a CANCELLED entry -- re-asking after cancellation creates a genuinely new entry', () => {
   const state0 = stateWithSession();
   const elem = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: elem }));
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: elem, source: null }] }));
   const record = first.next.sessions[KEY];
   assert.ok(record);
   const entry = record.dispatches['d1'];
@@ -174,7 +175,7 @@ test('enqueueDispatch does NOT dedupe against a CANCELLED entry -- re-asking aft
     },
   };
 
-  const cancelledRetry = makeEnvelope('d2', { element: elem });
+  const cancelledRetry = makeEnvelope('d2', { targets: [{ element: elem, source: null }] });
   const second = enqueueDispatch(stateWithCancelled, KEY, cancelledRetry);
   assert.deepStrictEqual(second.result, { status: 'ok', dispatchId: 'd2', envelope: cancelledRetry });
   assert.strictEqual(second.next.sessions[KEY]?.dispatches['d2']?.status, 'open');
@@ -183,7 +184,7 @@ test('enqueueDispatch does NOT dedupe against a CANCELLED entry -- re-asking aft
 test('enqueueDispatch does NOT dedupe against an EXPIRED entry -- re-asking after expiry creates a genuinely new entry', () => {
   const state0 = stateWithSession();
   const elem = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: elem }));
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: elem, source: null }] }));
   const record = first.next.sessions[KEY];
   assert.ok(record);
   const entry = record.dispatches['d1'];
@@ -199,7 +200,7 @@ test('enqueueDispatch does NOT dedupe against an EXPIRED entry -- re-asking afte
     },
   };
 
-  const expiredRetry = makeEnvelope('d2', { element: elem });
+  const expiredRetry = makeEnvelope('d2', { targets: [{ element: elem, source: null }] });
   const second = enqueueDispatch(stateWithExpired, KEY, expiredRetry);
   assert.deepStrictEqual(second.result, { status: 'ok', dispatchId: 'd2', envelope: expiredRetry });
 });
@@ -210,8 +211,8 @@ test('enqueueDispatch does not dedupe two envelopes that differ only in source.c
   const sourceA = { path: 'a.ts', rev: null, range: null, status: 'unchanged' as const, content: 'content A' };
   const sourceB = { path: 'a.ts', rev: null, range: null, status: 'unchanged' as const, content: 'content B' };
 
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: elem, source: sourceA }));
-  const differentContent = makeEnvelope('d2', { element: elem, source: sourceB });
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: elem, source: sourceA }] }));
+  const differentContent = makeEnvelope('d2', { targets: [{ element: elem, source: sourceB }] });
   const second = enqueueDispatch(first.next, KEY, differentContent);
 
   assert.deepStrictEqual(second.result, { status: 'ok', dispatchId: 'd2', envelope: differentContent });
@@ -235,10 +236,10 @@ test('enqueueDispatch does NOT dedupe a self-explanation (learnerNote set) again
   const elem = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
   const source = { path: 'a.ts', rev: null, range: null, status: 'unchanged' as const, content: 'content A' };
 
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: elem, source, learnerNote: null }));
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: elem, source }], learnerNote: null }));
   assert.strictEqual(first.result.status, 'ok');
 
-  const selfExplanation = makeEnvelope('d2', { element: elem, source, learnerNote: 'my own guess', parent_dispatch: 'd1' });
+  const selfExplanation = makeEnvelope('d2', { targets: [{ element: elem, source }], learnerNote: 'my own guess', parent_dispatch: 'd1' });
   const second = enqueueDispatch(first.next, KEY, selfExplanation);
 
   assert.deepStrictEqual(
@@ -253,8 +254,8 @@ test('enqueueDispatch DOES still dedupe two identical self-explanation submissio
   const elem = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
   const source = { path: 'a.ts', rev: null, range: null, status: 'unchanged' as const, content: 'content A' };
 
-  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { element: elem, source, learnerNote: 'same guess' }));
-  const second = enqueueDispatch(first.next, KEY, makeEnvelope('d2', { element: elem, source, learnerNote: 'same guess' }), WORK_IN_FLIGHT);
+  const first = enqueueDispatch(state0, KEY, makeEnvelope('d1', { targets: [{ element: elem, source }], learnerNote: 'same guess' }));
+  const second = enqueueDispatch(first.next, KEY, makeEnvelope('d2', { targets: [{ element: elem, source }], learnerNote: 'same guess' }), WORK_IN_FLIGHT);
 
   assert.deepStrictEqual(second.result, { status: 'duplicate', dispatchId: 'd1' });
 });
@@ -267,9 +268,9 @@ test('two identical self-explanation submissions with NOTHING working on the fir
   const elem = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
   const source = { path: 'a.ts', rev: null, range: null, status: 'unchanged' as const, content: 'content A' };
 
-  const original = makeEnvelope('d1', { element: elem, source, learnerNote: 'same guess' });
+  const original = makeEnvelope('d1', { targets: [{ element: elem, source }], learnerNote: 'same guess' });
   const first = enqueueDispatch(state0, KEY, original);
-  const second = enqueueDispatch(first.next, KEY, makeEnvelope('d2', { element: elem, source, learnerNote: 'same guess' }), NOTHING_IN_FLIGHT);
+  const second = enqueueDispatch(first.next, KEY, makeEnvelope('d2', { targets: [{ element: elem, source }], learnerNote: 'same guess' }), NOTHING_IN_FLIGHT);
 
   assert.deepStrictEqual(second.result, { status: 'ok', dispatchId: 'd1', envelope: original });
   assert.deepStrictEqual(second.next.sessions[KEY]?.queue, ['d1']);
@@ -509,7 +510,7 @@ const POISONED_ELEMENT = { uid: 'same-elem', selector: '#x', tag: 'p', text: 't'
  * never-answered dispatch with nothing listening and nothing in flight --
  * what a self-dispatch that failed to spawn leaves behind. */
 function stateWithAbandonedOpenDispatch(): IlluminateState {
-  const { next, result } = enqueueDispatch(stateWithSession(), KEY, makeEnvelope('d1', { element: POISONED_ELEMENT }));
+  const { next, result } = enqueueDispatch(stateWithSession(), KEY, makeEnvelope('d1', { targets: [{ element: POISONED_ELEMENT, source: null }] }));
   assert.strictEqual(result.status, 'ok');
   return next;
 }
@@ -525,7 +526,7 @@ function withSessionRecord(state: IlluminateState, fn: (record: SessionRecord) =
 test('a retry re-opens an abandoned open dispatch (no answer, nothing in flight) instead of silently deduping against it', () => {
   const poisoned = stateWithAbandonedOpenDispatch();
 
-  const retry = enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { element: POISONED_ELEMENT }), NOTHING_IN_FLIGHT);
+  const retry = enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { targets: [{ element: POISONED_ELEMENT, source: null }] }), NOTHING_IN_FLIGHT);
 
   // `ok`, not `duplicate`, is the whole fix: server.ts only wakes a waiting
   // poll and re-fires self-dispatch on `ok`, so `duplicate` here is exactly
@@ -540,7 +541,7 @@ test('a retry re-opens an abandoned open dispatch (no answer, nothing in flight)
 test('a re-opened dispatch keeps its ORIGINAL id and creates no second ledger entry or queue slot -- one card, one bill', () => {
   const poisoned = stateWithAbandonedOpenDispatch();
 
-  const retry = enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { element: POISONED_ELEMENT }), NOTHING_IN_FLIGHT);
+  const retry = enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { targets: [{ element: POISONED_ELEMENT, source: null }] }), NOTHING_IN_FLIGHT);
   const record = retry.next.sessions[KEY];
 
   assert.strictEqual(record?.dispatches['d2'], undefined, 'a retry must not mint a second ledger entry');
@@ -555,7 +556,7 @@ test('a re-opened dispatch that had fallen OUT of the queue is put back on it', 
   // constructed directly here rather than via that four-step dance.
   const abandoned = withSessionRecord(stateWithAbandonedOpenDispatch(), (record) => ({ ...record, queue: [] }));
 
-  const retry = enqueueDispatch(abandoned, KEY, makeEnvelope('d2', { element: POISONED_ELEMENT }), NOTHING_IN_FLIGHT);
+  const retry = enqueueDispatch(abandoned, KEY, makeEnvelope('d2', { targets: [{ element: POISONED_ELEMENT, source: null }] }), NOTHING_IN_FLIGHT);
 
   assert.strictEqual(retry.result.status, 'ok');
   assert.deepStrictEqual(retry.next.sessions[KEY]?.queue, ['d1'], 'a re-opened dispatch must be deliverable again');
@@ -564,7 +565,7 @@ test('a re-opened dispatch that had fallen OUT of the queue is put back on it', 
 test('a retry while a poll is open or a self-dispatch is in flight still dedupes -- the double-dispatch guard is intact', () => {
   const poisoned = stateWithAbandonedOpenDispatch();
 
-  const retry = enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { element: POISONED_ELEMENT }), WORK_IN_FLIGHT);
+  const retry = enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { targets: [{ element: POISONED_ELEMENT, source: null }] }), WORK_IN_FLIGHT);
 
   assert.deepStrictEqual(retry.result, { status: 'duplicate', dispatchId: 'd1' });
   assert.strictEqual(retry.next, poisoned, 'a genuine duplicate stays a true no-op -- no new state object at all');
@@ -574,7 +575,7 @@ test('isWorkInFlight is asked about the EXISTING dispatch id, not the retry id',
   const poisoned = stateWithAbandonedOpenDispatch();
   const asked: string[] = [];
 
-  enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { element: POISONED_ELEMENT }), (id) => {
+  enqueueDispatch(poisoned, KEY, makeEnvelope('d2', { targets: [{ element: POISONED_ELEMENT, source: null }] }), (id) => {
     asked.push(id);
     return false;
   });
@@ -611,17 +612,17 @@ test('a retry against an ANSWERED dispatch still dedupes -- an answer came back,
     };
   });
 
-  const retry = enqueueDispatch(answered, KEY, makeEnvelope('d2', { element: POISONED_ELEMENT }), NOTHING_IN_FLIGHT);
+  const retry = enqueueDispatch(answered, KEY, makeEnvelope('d2', { targets: [{ element: POISONED_ELEMENT, source: null }] }), NOTHING_IN_FLIGHT);
 
   assert.deepStrictEqual(retry.result, { status: 'duplicate', dispatchId: 'd1' });
 });
 
 test('a retry against a DELIVERED dispatch still dedupes -- a harness took it, and re-queueing would hand out the same work twice', () => {
-  const first = enqueueDispatch(stateWithSession(), KEY, makeEnvelope('d1', { element: POISONED_ELEMENT }));
+  const first = enqueueDispatch(stateWithSession(), KEY, makeEnvelope('d1', { targets: [{ element: POISONED_ELEMENT, source: null }] }));
   const drained = drainQueue(first.next, KEY);
   assert.strictEqual(drained.next.sessions[KEY]?.dispatches['d1']?.status, 'delivered');
 
-  const retry = enqueueDispatch(drained.next, KEY, makeEnvelope('d2', { element: POISONED_ELEMENT }), NOTHING_IN_FLIGHT);
+  const retry = enqueueDispatch(drained.next, KEY, makeEnvelope('d2', { targets: [{ element: POISONED_ELEMENT, source: null }] }), NOTHING_IN_FLIGHT);
 
   assert.deepStrictEqual(retry.result, { status: 'duplicate', dispatchId: 'd1' });
 });

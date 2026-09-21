@@ -174,8 +174,7 @@ async function sendQueuedNotes(notes: readonly QueuedNote[]): Promise<void> {
       body: JSON.stringify({
         protocol: INTENT_PROTOCOL_VERSION,
         intent: note.intent,
-        element: note.target.element,
-        anchor: note.target.anchor,
+        targets: note.target.targets,
         depth: 1,
         parent_dispatch: null,
         learnerNote: null,
@@ -294,11 +293,15 @@ async function handleComposerSubmission(submission: ComposerSubmissionMessage): 
     if (result) uploaded.push(result);
   }
 
+  // ADR-102: the queue row is keyed on the FIRST selected section (a row
+  // names one place in the artifact), but carries the whole selection so a
+  // queued note dispatches about everything the human had selected.
+  const first = submission.targets[0];
+  if (first === undefined) return;
   const target = {
-    uid: submission.element.uid,
+    uid: first.element.uid,
     label: submission.label,
-    element: submission.element as unknown as Readonly<Record<string, unknown>>,
-    anchor: submission.anchor as unknown as Readonly<Record<string, unknown>> | null,
+    targets: submission.targets as unknown as readonly Readonly<Record<string, unknown>>[],
     attachments: uploaded,
   };
 
@@ -583,15 +586,20 @@ window.addEventListener('message', (event: MessageEvent) => {
           // pending state at all: the artifact's own placeholder is
           // suppressed while the rail owns card bodies, and only the
           // composer path calls addPending for itself.
+          const primary = payload.targets[0];
+          if (primary === undefined) return;
           rail.addPending(
             b.dispatch_id,
-            payload.element.uid,
-            payload.anchor?.src ?? `<${payload.element.tag}> ${payload.element.text.slice(0, 48)}`,
+            primary.element.uid,
+            // The rail row names the first selected section, and says how many
+            // more rode along -- a row that lists all of them stops being a row.
+            (primary.anchor?.src ?? `<${primary.element.tag}> ${primary.element.text.slice(0, 48)}`) +
+              (payload.targets.length > 1 ? ` (+${String(payload.targets.length - 1)} more)` : ''),
             payload.intent,
           );
           postToArtifact({
             type: 'illuminate:dispatchCreated',
-            payload: { dispatchId: b.dispatch_id, elementUid: payload.element.uid },
+            payload: { dispatchId: b.dispatch_id, elementUid: primary.element.uid },
           });
         });
       })

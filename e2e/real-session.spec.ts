@@ -82,7 +82,7 @@ test('a real click on a real anchored element, through the real chrome shell, pr
   await sleep(200);
 
   const { frame } = await openRealChromeShell(page, ctx.port, ctx.key);
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
@@ -99,8 +99,9 @@ test('a real click on a real anchored element, through the real chrome shell, pr
   expect(envelope.intent).toBe('explain');
   expect(envelope.role).toBe('tutor');
   expect(envelope.model_tier).toBe('haiku');
-  expect(envelope.element.selector).toBe('body > h1#heading');
-  expect(envelope.element.tag).toBe('h1');
+  expect(envelope.targets).toHaveLength(1);
+  expect(envelope.targets[0]?.element.selector).toBe('body > h1#heading');
+  expect(envelope.targets[0]?.element.tag).toBe('h1');
 
   // The audit route is real and reachable, even though (by design) it
   // cannot itself carry this test's intent/role/tier assertion -- see this

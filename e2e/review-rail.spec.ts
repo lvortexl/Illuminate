@@ -52,7 +52,7 @@ async function openShell(page: Page): Promise<void> {
  * two controls that could disagree about which element they meant. */
 async function compose(page: Page, selector: string, note: string, action: 'Queue' | 'Send'): Promise<void> {
   const frame = page.frameLocator('iframe');
-  await frame.locator(selector).click();
+  await frame.locator(selector).click({ button: 'right' });
   await frame.locator('.illum-composer-note').fill(note);
   await frame.locator('.illum-composer-actions button', { hasText: action }).click();
 }
@@ -99,7 +99,7 @@ test('opening the composer on an element costs nothing until it is committed', a
   await openShell(page);
   const frame = page.frameLocator('iframe');
 
-  await frame.locator('#first').click();
+  await frame.locator('#first').click({ button: 'right' });
 
   // The composer names what it is pointed at, including the citation, so the
   // reader knows whether the answer will be grounded before they write.
@@ -276,7 +276,7 @@ async function postAnswer(port: number, dispatchId: string, markdown: string): P
  * dispatch id off the real POST response. */
 async function sendNote(page: Page, selector: string, note: string): Promise<string> {
   const frame = page.frameLocator('iframe');
-  await frame.locator(selector).click();
+  await frame.locator(selector).click({ button: 'right' });
   await frame.locator('.illum-composer-note').fill(note);
   const responsePromise = page.waitForResponse(
     (res) => res.url().includes('/dispatches') && res.request().method() === 'POST',
@@ -359,7 +359,7 @@ test('a rail card can grade the human’s own explanation without becoming a run
 test('a composed note travels as note, never as a graded learnerNote', async ({ page }) => {
   await openShell(page);
   const frame = page.frameLocator('iframe');
-  await frame.locator('#first').click();
+  await frame.locator('#first').click({ button: 'right' });
   await frame.locator('.illum-composer-note').fill('Which line proves this?');
 
   const post = page.waitForResponse(
@@ -392,7 +392,7 @@ test('an attached image is uploaded and reaches the dispatch as an id, never as 
   await openShell(page);
   const frame = page.frameLocator('iframe');
 
-  await frame.locator('#first').click();
+  await frame.locator('#first').click({ button: 'right' });
   await frame.locator('.illum-composer input[type="file"]').setInputFiles({
     name: 'screenshot.png',
     mimeType: 'image/png',
@@ -425,7 +425,7 @@ test('an attachment can be removed before the note is committed', async ({ page 
   await openShell(page);
   const frame = page.frameLocator('iframe');
 
-  await frame.locator('#first').click();
+  await frame.locator('#first').click({ button: 'right' });
   await frame.locator('.illum-composer input[type="file"]').setInputFiles({
     name: 'wrong-one.png',
     mimeType: 'image/png',
@@ -449,7 +449,7 @@ test('a queued note carries its attachments through to the batch send', async ({
   await openShell(page);
   const frame = page.frameLocator('iframe');
 
-  await frame.locator('#first').click();
+  await frame.locator('#first').click({ button: 'right' });
   await frame.locator('.illum-composer input[type="file"]').setInputFiles({
     name: 'queued.png',
     mimeType: 'image/png',

@@ -81,8 +81,7 @@ async function enqueueDispatch(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       intent,
-      element: { uid, selector: `#${uid}`, tag: 'p', text: `task text for ${uid}` },
-      anchor: null,
+      targets: [{ element: { uid, selector: `#${uid}`, tag: 'p', text: `task text for ${uid}` }, anchor: null }],
       note,
     }),
   });
@@ -301,6 +300,84 @@ test('illuminate poll <file.html> delivers the human note to the agent, through 
       );
       assert.match(stdoutBuf, /^ {2}note: /m, 'the note must be labelled, not merely present somewhere');
       assert.ok(isAsciiOnly(stdoutBuf), `stdout is not ASCII-only: ${JSON.stringify(stdoutBuf)}`);
+    } finally {
+      await stopDaemon(dir);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-104: `--follow` keeps a harness attached.
+// ---------------------------------------------------------------------------
+
+test('illuminate poll --follow stays attached past the first dispatch and streams NDJSON', async () => {
+  await withTempDir(async (dir) => {
+    const file = join(dir, 'artifact.html');
+    await writeFile(file, '<!doctype html><html><body><p>hi</p></body></html>');
+    try {
+      const child = spawn(process.execPath, ['dist/cli.mjs', 'poll', file, '--follow'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stdoutBuf = '';
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdoutBuf += chunk.toString();
+      });
+
+      // Wait for the daemon the poll child spawned, then enqueue TWO
+      // dispatches. Two is the whole point: a one-shot poll would print the
+      // first and exit, so a second line is what proves it stayed attached.
+      const deadline = Date.now() + 8000;
+      let record = await readLock(lockPathFor(dir));
+      while (!record && Date.now() < deadline) {
+        await sleep(50);
+        record = await readLock(lockPathFor(dir));
+      }
+      assert.ok(record, 'daemon never came up');
+      const key = sessionKey(await realpath(file));
+
+      // The lockfile lands BEFORE the poll child has finished registering its
+      // session, so an immediate enqueue races it and 404s "unknown session".
+      // Wait for the session itself rather than for the daemon.
+      const port = record.port;
+      const sessionDeadline = Date.now() + 8000;
+      for (;;) {
+        const probe = await fetch(`http://127.0.0.1:${port}/api/${key}/dispatches`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            intent: 'explain',
+            targets: [{ element: { uid: 'one', selector: '#one', tag: 'p', text: 'task text for one' }, anchor: null }],
+            note: null,
+          }),
+        });
+        if (probe.status === 200) break;
+        assert.ok(Date.now() < sessionDeadline, `session never registered: ${probe.status} ${await probe.text()}`);
+        await sleep(100);
+      }
+      await sleep(600);
+      await enqueueDispatch(port, key, 'two', 'verify');
+
+      const lineDeadline = Date.now() + 8000;
+      while (stdoutBuf.split('\n').filter((l) => l.trim().length > 0).length < 2 && Date.now() < lineDeadline) {
+        await sleep(50);
+      }
+      child.kill('SIGINT');
+
+      const lines = stdoutBuf.split('\n').filter((l) => l.trim().length > 0);
+      assert.ok(lines.length >= 2, `expected >=2 NDJSON lines, got ${lines.length}: ${stdoutBuf}`);
+
+      // Each line is ONE complete envelope a harness can parse without a
+      // client library -- and carries the params the agent for it must run
+      // with, already resolved by the router's policy table.
+      const envelopes = lines.map((l) => JSON.parse(l) as Record<string, unknown>);
+      for (const env of envelopes) {
+        assert.ok(typeof env['dispatch_id'] === 'string', `no dispatch_id: ${JSON.stringify(env)}`);
+        assert.ok(typeof env['role'] === 'string', 'envelope must name the role to run as');
+        assert.ok(typeof env['model_tier'] === 'string', 'envelope must name the tier to run at');
+        assert.ok(Array.isArray(env['tools']), 'envelope must name the tool list');
+      }
+      const intents = envelopes.map((e) => e['intent']);
+      assert.ok(intents.includes('explain') && intents.includes('verify'), `both intents should arrive: ${String(intents)}`);
     } finally {
       await stopDaemon(dir);
     }

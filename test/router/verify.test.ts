@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { isUngroundable } from '../../src/router/verify.ts';
 import type { DispatchSource } from '../../src/router/types.ts';
 
+/** A minimal element: isUngroundable only reads `source`, but a target
+ * carries both, so the element is a fixed stand-in here. */
+const ELEMENT = { uid: 'e', selector: '#e', tag: 'p', text: 't', prefixContext: null, suffixContext: null };
+
 /** A syntactically valid, minimal `DispatchSource` fixture -- only
  * `status`/`content` vary per table row below; `path`/`rev`/`range` are
  * fixed, plausible values irrelevant to `isUngroundable`'s own logic. */
@@ -43,7 +47,7 @@ const CASES: ReadonlyArray<{
 
 for (const { name, source: s, expected } of CASES) {
   test(`isUngroundable: ${name} -> ${String(expected)}`, () => {
-    assert.strictEqual(isUngroundable(s), expected);
+    assert.strictEqual(isUngroundable([{ element: ELEMENT, source: s }]), expected);
   });
 }
 
@@ -52,8 +56,8 @@ for (const { name, source: s, expected } of CASES) {
 // object at all, not a DispatchSource with a null-content field.
 // ---------------------------------------------------------------------------
 
-test('isUngroundable(null) -> true (unanchored element, no source object at all)', () => {
-  assert.strictEqual(isUngroundable(null), true);
+test('isUngroundable([]) -> true (unanchored element, no source object at all)', () => {
+  assert.strictEqual(isUngroundable([]), true);
 });
 
 // ---------------------------------------------------------------------------
@@ -64,21 +68,21 @@ test('isUngroundable(null) -> true (unanchored element, no source object at all)
 // ---------------------------------------------------------------------------
 
 test('isUngroundable is keyed on content nullness, not status: a "no-git" source WITH real content is groundable', () => {
-  assert.strictEqual(isUngroundable(source('no-git', 'raw working-tree content')), false);
+  assert.strictEqual(isUngroundable([{ element: ELEMENT, source: source('no-git', 'raw working-tree content') }]), false);
 });
 
 test('isUngroundable is keyed on content nullness, not status: a "refused" source can never carry content, and stays ungroundable', () => {
-  assert.strictEqual(isUngroundable(source('refused', null)), true);
+  assert.strictEqual(isUngroundable([{ element: ELEMENT, source: source('refused', null) }]), true);
 });
 
 // ---------------------------------------------------------------------------
 // 'unanchored' status, defensively -- resolve() itself can produce this
 // (when called with a null AnchorInput), even though buildDispatchEnvelope's
 // own real call path never does (it only calls resolve() when
-// payload.anchor !== null). Covered here so this function stays correct
+// payload.targets[0]!.anchor !== null). Covered here so this function stays correct
 // even if a future caller of resolve() reaches this branch.
 // ---------------------------------------------------------------------------
 
 test('isUngroundable: a DispatchSource with status "unanchored" (defensive, not reachable via buildDispatchEnvelope today) -> true', () => {
-  assert.strictEqual(isUngroundable(source('unanchored', null)), true);
+  assert.strictEqual(isUngroundable([{ element: ELEMENT, source: source('unanchored', null) }]), true);
 });

@@ -155,7 +155,7 @@ async function createSession(port: number, file: string): Promise<string> {
 }
 
 async function dispatchUnanchored(port: number, key: string, uid: string, intent: Intent = 'explain'): Promise<string> {
-  const payload = buildTypedIntentPayload({ intent, element: { ...ELEMENT, uid, selector: `#${uid}` }, anchor: null });
+  const payload = buildTypedIntentPayload({ intent, targets: [{ element: { ...ELEMENT, uid, selector: `#${uid}` }, anchor: null }] });
   const res = await postJson(port, `/api/${key}/dispatches`, payload);
   assert.strictEqual(res.status, 200, `dispatch creation failed: ${res.body}`);
   const body = JSON.parse(res.body) as { dispatch_id: string };
@@ -249,7 +249,7 @@ test('after answering a dispatch, GET /api/:key/annotations reflects exactly one
 test('a verify dispatch on an unanchored element is answered synchronously inside the create-dispatch request, zero-cost, verdict not-determinable', async () => {
   await withServer(async ({ port, repo }) => {
     const key = await createSession(port, join(repo.root, 'artifact.html'));
-    const payload = buildTypedIntentPayload({ intent: 'verify', element: { ...ELEMENT, uid: 'verify-1' }, anchor: null });
+    const payload = buildTypedIntentPayload({ intent: 'verify', targets: [{ element: { ...ELEMENT, uid: 'verify-1' }, anchor: null }] });
 
     const created = await postJson(port, `/api/${key}/dispatches`, payload);
     assert.strictEqual(created.status, 200, `dispatch creation failed: ${created.body}`);
@@ -285,7 +285,7 @@ test('a verify dispatch on an unanchored element is answered synchronously insid
 test('costUsd/tokensIn/tokensOut on the shortcut-answered verify dispatch are all zero', async () => {
   await withServer(async ({ port, repo }) => {
     const key = await createSession(port, join(repo.root, 'artifact.html'));
-    const payload = buildTypedIntentPayload({ intent: 'verify', element: { ...ELEMENT, uid: 'verify-cost' }, anchor: null });
+    const payload = buildTypedIntentPayload({ intent: 'verify', targets: [{ element: { ...ELEMENT, uid: 'verify-cost' }, anchor: null }] });
     await postJson(port, `/api/${key}/dispatches`, payload);
 
     const auditRes = await rawRequest(port, { path: `/api/${key}/dispatches` });
@@ -300,7 +300,7 @@ test('costUsd/tokensIn/tokensOut on the shortcut-answered verify dispatch are al
 test('the ungroundable-verify shortcut dispatch is never delivered by a subsequent poll -- it never enters an open, poll-visible state', async () => {
   await withServer(async ({ port, repo }) => {
     const key = await createSession(port, join(repo.root, 'artifact.html'));
-    const payload = buildTypedIntentPayload({ intent: 'verify', element: { ...ELEMENT, uid: 'verify-poll' }, anchor: null });
+    const payload = buildTypedIntentPayload({ intent: 'verify', targets: [{ element: { ...ELEMENT, uid: 'verify-poll' }, anchor: null }] });
     await postJson(port, `/api/${key}/dispatches`, payload);
 
     const pollRes = await rawRequest(port, { path: `/api/${key}/poll?timeoutMs=50` });
@@ -319,7 +319,7 @@ test('an ordinary explain dispatch on an anchored element with real resolvable c
     const region = ['export function add(a: number, b: number): number {', '  return a + b;', '}'];
     const rev = repo.commitFile('src/math.ts', block(region), 'add math.ts');
     const anchor: IntentAnchor = { src: 'src/math.ts#L1-L3', rev, anchorHash: anchorHash(region.join('\n')) };
-    const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor });
+    const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor }] });
 
     const created = await postJson(port, `/api/${key}/dispatches`, payload);
     assert.strictEqual(created.status, 200);
@@ -344,7 +344,7 @@ test('an anchored verify dispatch with real resolvable content is also unaffecte
     const region = ['export function subtract(a: number, b: number): number {', '  return a - b;', '}'];
     const rev = repo.commitFile('src/math2.ts', block(region), 'add math2.ts');
     const anchor: IntentAnchor = { src: 'src/math2.ts#L1-L3', rev, anchorHash: anchorHash(region.join('\n')) };
-    const payload = buildTypedIntentPayload({ intent: 'verify', element: { ...ELEMENT, uid: 'verify-anchored' }, anchor });
+    const payload = buildTypedIntentPayload({ intent: 'verify', targets: [{ element: { ...ELEMENT, uid: 'verify-anchored' }, anchor }] });
 
     const created = await postJson(port, `/api/${key}/dispatches`, payload);
     assert.strictEqual(created.status, 200);
@@ -373,8 +373,7 @@ test('a self-explanation (learnerNote set) on an unanchored element is answered 
     const key = await createSession(port, join(repo.root, 'artifact.html'));
     const payload = buildTypedIntentPayload({
       intent: 'explain',
-      element: { ...ELEMENT, uid: 'self-explain-1' },
-      anchor: null,
+      targets: [{ element: { ...ELEMENT, uid: 'self-explain-1' }, anchor: null }],
       learnerNote: 'I think this function adds two numbers together.',
       note: null,
     });
@@ -421,8 +420,7 @@ test('the ungroundable-self-explanation shortcut is never delivered by a subsequ
     const key = await createSession(port, join(repo.root, 'artifact.html'));
     const payload = buildTypedIntentPayload({
       intent: 'explain',
-      element: { ...ELEMENT, uid: 'self-explain-poll' },
-      anchor: null,
+      targets: [{ element: { ...ELEMENT, uid: 'self-explain-poll' }, anchor: null }],
       learnerNote: 'my guess',
       note: null,
     });
@@ -446,8 +444,7 @@ test('an anchored self-explanation with real resolvable content is unaffected by
     const anchor: IntentAnchor = { src: 'src/math3.ts#L1-L3', rev, anchorHash: anchorHash(region.join('\n')) };
     const payload = buildTypedIntentPayload({
       intent: 'explain',
-      element: { ...ELEMENT, uid: 'self-explain-anchored' },
-      anchor,
+      targets: [{ element: { ...ELEMENT, uid: 'self-explain-anchored' }, anchor }],
       learnerNote: 'I think this multiplies two numbers.',
       note: null,
     });
@@ -471,15 +468,14 @@ test('the ungroundable-verify shortcut and the ungroundable-self-explanation sho
   await withServer(async ({ port, repo }) => {
     const key = await createSession(port, join(repo.root, 'artifact.html'));
 
-    const verifyPayload = buildTypedIntentPayload({ intent: 'verify', element: { ...ELEMENT, uid: 'both-verify' }, anchor: null });
+    const verifyPayload = buildTypedIntentPayload({ intent: 'verify', targets: [{ element: { ...ELEMENT, uid: 'both-verify' }, anchor: null }] });
     const verifyRes = await postJson(port, `/api/${key}/dispatches`, verifyPayload);
     assert.strictEqual(verifyRes.status, 200);
     const { dispatch_id: verifyDispatchId } = JSON.parse(verifyRes.body) as { dispatch_id: string };
 
     const selfExplainPayload = buildTypedIntentPayload({
       intent: 'explain',
-      element: { ...ELEMENT, uid: 'both-self-explain' },
-      anchor: null,
+      targets: [{ element: { ...ELEMENT, uid: 'both-self-explain' }, anchor: null }],
       learnerNote: 'my own guess',
       note: null,
     });

@@ -50,16 +50,16 @@ function usingFixture(t: TestContext): FixtureRepo {
 
 test('buildDispatchEnvelope: an unanchored payload (anchor: null) produces source: null, still dispatched', async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
-  assert.strictEqual(envelope.source, null);
+  assert.strictEqual(envelope.targets[0]!.source, null);
   assert.strictEqual(envelope.role, 'tutor');
   assert.strictEqual(envelope.model_tier, 'haiku');
-  assert.strictEqual(envelope.protocol, 'illuminate.dispatch/1');
+  assert.strictEqual(envelope.protocol, 'illuminate.dispatch/2');
   assert.strictEqual(envelope.intent, 'explain');
-  assert.deepStrictEqual(envelope.element, ELEMENT);
+  assert.deepStrictEqual(envelope.targets[0]!.element, ELEMENT);
 });
 
 // ---------------------------------------------------------------------------
@@ -73,26 +73,26 @@ test('buildDispatchEnvelope: a real anchor resolves genuinely resolved content, 
   const rev = repo.commitFile('src/math.ts', block(region), 'add math.ts');
 
   const anchor: IntentAnchor = { src: 'src/math.ts#L1-L3', rev, anchorHash: anchorHash(region.join('\n')) };
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
-  assert.ok(envelope.source !== null, 'an anchored payload must produce a non-null source');
-  assert.strictEqual(envelope.source.status, 'unchanged');
-  assert.strictEqual(envelope.source.content, region.join('\n'));
-  assert.strictEqual(envelope.source.path, 'src/math.ts');
-  assert.strictEqual(envelope.source.rev, rev);
-  assert.deepStrictEqual(envelope.source.range, { startLine: 1, endLine: 3 });
+  assert.ok(envelope.targets[0]!.source !== null, 'an anchored payload must produce a non-null source');
+  assert.strictEqual(envelope.targets[0]!.source.status, 'unchanged');
+  assert.strictEqual(envelope.targets[0]!.source.content, region.join('\n'));
+  assert.strictEqual(envelope.targets[0]!.source.path, 'src/math.ts');
+  assert.strictEqual(envelope.targets[0]!.source.rev, rev);
+  assert.deepStrictEqual(envelope.targets[0]!.source.range, { startLine: 1, endLine: 3 });
   // Never a re-fetch instruction -- content must not merely reference the
   // path/rev, it must BE the actual resolved text.
-  assert.ok(!envelope.source.content?.includes('re-fetch'), 'source.content must be real content, not an instruction to fetch it');
+  assert.ok(!envelope.targets[0]!.source.content?.includes('re-fetch'), 'source.content must be real content, not an instruction to fetch it');
 });
 
 test('buildDispatchEnvelope: role/tier for an anchored payload come from resolvePolicy alone', async (t) => {
   const repo = usingFixture(t);
   const rev = repo.commitFile('src/impl.ts', block(['const x = 1;']), 'add impl.ts');
   const anchor: IntentAnchor = { src: 'src/impl.ts#L1-L1', rev, anchorHash: HASH };
-  const payload = buildTypedIntentPayload({ intent: 'fix-code', element: ELEMENT, anchor });
+  const payload = buildTypedIntentPayload({ intent: 'fix-code', targets: [{ element: ELEMENT, anchor }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
@@ -112,13 +112,13 @@ test('buildDispatchEnvelope: a missing data-anchor-hash produces a valid envelop
   const repo = usingFixture(t);
   repo.commitFile('src/whatever.ts', block(['a']), 'add whatever.ts');
   const anchor: IntentAnchor = { src: 'src/whatever.ts#L1-L1', rev: null, anchorHash: null };
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
-  assert.ok(envelope.source !== null);
-  assert.strictEqual(envelope.source.status, 'file-level');
-  assert.notStrictEqual(envelope.source.content, null);
+  assert.ok(envelope.targets[0]!.source !== null);
+  assert.strictEqual(envelope.targets[0]!.source.status, 'file-level');
+  assert.notStrictEqual(envelope.targets[0]!.source.content, null);
   // Grounding tier never touches role/tier either.
   assert.strictEqual(envelope.role, 'tutor');
   assert.strictEqual(envelope.model_tier, 'haiku');
@@ -127,13 +127,13 @@ test('buildDispatchEnvelope: a missing data-anchor-hash produces a valid envelop
 test('buildDispatchEnvelope: a path escaping the repo root produces source.status "refused", never throws', async (t) => {
   const repo = usingFixture(t);
   const anchor: IntentAnchor = { src: '../../../../etc/passwd', rev: null, anchorHash: HASH };
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
-  assert.ok(envelope.source !== null);
-  assert.strictEqual(envelope.source.status, 'refused');
-  assert.strictEqual(envelope.source.content, null);
+  assert.ok(envelope.targets[0]!.source !== null);
+  assert.strictEqual(envelope.targets[0]!.source.status, 'refused');
+  assert.strictEqual(envelope.targets[0]!.source.content, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -142,7 +142,7 @@ test('buildDispatchEnvelope: a path escaping the repo root produces source.statu
 
 test('buildDispatchEnvelope: dispatch_id is fresh and unpredictable across calls', async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] });
 
   const a = await buildDispatchEnvelope(payload, repo.root, PORT);
   const b = await buildDispatchEnvelope(payload, repo.root, PORT);
@@ -154,7 +154,7 @@ test('buildDispatchEnvelope: dispatch_id is fresh and unpredictable across calls
 
 test('buildDispatchEnvelope: return_to is exactly the documented answer command, keyed to this dispatch_id and port', async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
@@ -163,7 +163,7 @@ test('buildDispatchEnvelope: return_to is exactly the documented answer command,
 
 test('buildDispatchEnvelope: return_contract is a fixed, non-empty instruction, identical across calls', async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] });
 
   const a = await buildDispatchEnvelope(payload, repo.root, PORT);
   const b = await buildDispatchEnvelope(payload, repo.root, PORT);
@@ -181,7 +181,7 @@ test('buildDispatchEnvelope: return_contract is a fixed, non-empty instruction, 
 
 test("buildDispatchEnvelope: return_contract is unchanged, byte-identical to the ordinary text, when learnerNote is null", async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null, learnerNote: null });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }], learnerNote: null });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
@@ -197,8 +197,7 @@ test('buildDispatchEnvelope: a learnerNote-carrying payload gets a DIFFERENT, se
   const repo = usingFixture(t);
   const payload = buildTypedIntentPayload({
     intent: 'explain',
-    element: ELEMENT,
-    anchor: null,
+    targets: [{ element: ELEMENT, anchor: null }],
     learnerNote: 'my own guess at what this does',
     note: null,
   });
@@ -226,8 +225,8 @@ test('buildDispatchEnvelope: a learnerNote-carrying payload gets a DIFFERENT, se
 
 test('buildDispatchEnvelope: the self-explanation return_contract is fixed data, identical across calls, not assembled per call', async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null, learnerNote: 'guess A' });
-  const payload2 = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null, learnerNote: 'guess B' });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }], learnerNote: 'guess A' });
+  const payload2 = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }], learnerNote: 'guess B' });
 
   const a = await buildDispatchEnvelope(payload, repo.root, PORT);
   const b = await buildDispatchEnvelope(payload2, repo.root, PORT);
@@ -239,17 +238,17 @@ test('buildDispatchEnvelope: deadline_ms is fixed per tier -- haiku/sonnet 12000
   const repo = usingFixture(t);
 
   const explain = await buildDispatchEnvelope(
-    buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null }),
+    buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] }),
     repo.root,
     PORT,
   );
   const verify = await buildDispatchEnvelope(
-    buildTypedIntentPayload({ intent: 'verify', element: ELEMENT, anchor: null }),
+    buildTypedIntentPayload({ intent: 'verify', targets: [{ element: ELEMENT, anchor: null }] }),
     repo.root,
     PORT,
   );
   const fixCode = await buildDispatchEnvelope(
-    buildTypedIntentPayload({ intent: 'fix-code', element: ELEMENT, anchor: null }),
+    buildTypedIntentPayload({ intent: 'fix-code', targets: [{ element: ELEMENT, anchor: null }] }),
     repo.root,
     PORT,
   );
@@ -270,7 +269,7 @@ test('buildDispatchEnvelope: deadline_ms is fixed per tier -- haiku/sonnet 12000
 
 test('buildDispatchEnvelope: an explain envelope carries tools: [] -- EDU-01\'s zero-tool guarantee, wire-visible', async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor: null });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor: null }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
@@ -279,7 +278,7 @@ test('buildDispatchEnvelope: an explain envelope carries tools: [] -- EDU-01\'s 
 
 test("buildDispatchEnvelope: a verify envelope carries tools: ['Read', 'Grep', 'Glob']", async (t) => {
   const repo = usingFixture(t);
-  const payload = buildTypedIntentPayload({ intent: 'verify', element: ELEMENT, anchor: null });
+  const payload = buildTypedIntentPayload({ intent: 'verify', targets: [{ element: ELEMENT, anchor: null }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
@@ -290,8 +289,7 @@ test('buildDispatchEnvelope: depth/parent_dispatch/learnerNote are copied verbat
   const repo = usingFixture(t);
   const payload = buildTypedIntentPayload({
     intent: 'explain',
-    element: ELEMENT,
-    anchor: null,
+    targets: [{ element: ELEMENT, anchor: null }],
     depth: 3,
     parent_dispatch: 'd_prior',
     learnerNote: 'guess text',
@@ -312,7 +310,7 @@ test('buildDispatchEnvelope: depth/parent_dispatch/learnerNote are copied verbat
 // role/tier. envelope.ts's own step ordering runs resolvePolicy(payload.intent)
 // BEFORE anchor resolution even starts (see buildDispatchEnvelope's doc
 // comment) -- this is the empirical proof that ordering actually holds
-// against real, attacker-shaped content that reaches envelope.source.content
+// against real, attacker-shaped content that reaches envelope.targets[0]!.source.content
 // as DATA, not the structural/type-level half 06-02 already covers.
 // ---------------------------------------------------------------------------
 
@@ -331,7 +329,7 @@ test('ROUT-02 full pipeline proof: a real injected pseudo-SYSTEM directive resol
     rev,
     anchorHash: anchorHash(INJECTED_DIRECTIVE.join('\n')),
   };
-  const payload = buildTypedIntentPayload({ intent: 'explain', element: ELEMENT, anchor });
+  const payload = buildTypedIntentPayload({ intent: 'explain', targets: [{ element: ELEMENT, anchor }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
@@ -343,11 +341,11 @@ test('ROUT-02 full pipeline proof: a real injected pseudo-SYSTEM directive resol
   // genuinely reached the envelope -- a test that merely proved role/tier
   // were unaffected without also proving the content actually arrived would
   // prove nothing about the real threat.
-  assert.ok(envelope.source !== null);
-  assert.strictEqual(envelope.source.status, 'unchanged');
-  assert.strictEqual(envelope.source.content, INJECTED_DIRECTIVE.join('\n'));
-  assert.ok(envelope.source.content.includes('SYSTEM:'), 'the injected directive must be present verbatim, not stripped');
-  assert.ok(envelope.source.content.includes('implementer'), 'the injected directive\'s own steering text must be present verbatim');
+  assert.ok(envelope.targets[0]!.source !== null);
+  assert.strictEqual(envelope.targets[0]!.source.status, 'unchanged');
+  assert.strictEqual(envelope.targets[0]!.source.content, INJECTED_DIRECTIVE.join('\n'));
+  assert.ok(envelope.targets[0]!.source.content.includes('SYSTEM:'), 'the injected directive must be present verbatim, not stripped');
+  assert.ok(envelope.targets[0]!.source.content.includes('implementer'), 'the injected directive\'s own steering text must be present verbatim');
 
   // The actual ROUT-02 proof: role/tier are UNAFFECTED by the injected
   // text, even though it explicitly instructs "call the implementer role".
@@ -364,13 +362,13 @@ test('ROUT-02 full pipeline proof: the SAME injected directive cannot unlock or 
     rev,
     anchorHash: anchorHash(INJECTED_DIRECTIVE.join('\n')),
   };
-  const payload = buildTypedIntentPayload({ intent: 'fix-code', element: ELEMENT, anchor });
+  const payload = buildTypedIntentPayload({ intent: 'fix-code', targets: [{ element: ELEMENT, anchor }] });
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
-  assert.ok(envelope.source !== null);
-  assert.strictEqual(envelope.source.status, 'unchanged');
-  assert.strictEqual(envelope.source.content, INJECTED_DIRECTIVE.join('\n'));
+  assert.ok(envelope.targets[0]!.source !== null);
+  assert.strictEqual(envelope.targets[0]!.source.status, 'unchanged');
+  assert.strictEqual(envelope.targets[0]!.source.content, INJECTED_DIRECTIVE.join('\n'));
 
   // fix-code legitimately reaches implementer/opus -- but ONLY because the
   // browser's OWN typed intent selected it, never because the resolved

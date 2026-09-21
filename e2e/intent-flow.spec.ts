@@ -38,8 +38,10 @@ interface ReceivedIntentMessage {
   readonly payload?: {
     readonly protocol: string;
     readonly intent: string;
-    readonly element: { readonly uid: string; readonly selector: string; readonly tag: string; readonly text: string };
-    readonly anchor: { readonly src: string; readonly rev: string | null; readonly anchorHash: string | null } | null;
+    readonly targets: readonly {
+      readonly element: { readonly uid: string; readonly selector: string; readonly tag: string; readonly text: string };
+      readonly anchor: { readonly src: string; readonly rev: string | null; readonly anchorHash: string | null } | null;
+    }[];
     readonly note?: string | null;
     readonly mode?: string;
     readonly depth: number;
@@ -132,7 +134,7 @@ async function openFixtureChromeShell(page: Page): Promise<ArtifactLoad> {
 test('mouse: clicking an anchored element then "Explain" posts exactly one typed-intent message', async ({ page }) => {
   const load = await openFixtureChromeShell(page);
   const frame = page.frameLocator('iframe');
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
@@ -143,9 +145,9 @@ test('mouse: clicking an anchored element then "Explain" posts exactly one typed
   expect(msg.type).toBe('illuminate:queueNote');
   expect(msg.artifact_load_token).toBe(load.artifactLoadToken);
     expect(msg.payload?.intent).toBe('explain');
-  expect(msg.payload?.element.selector).toBe('body > h1#heading');
-  expect(msg.payload?.element.tag).toBe('h1');
-  expect(msg.payload?.anchor).toEqual(HEADING_ANCHOR);
+  expect(msg.payload?.targets[0]?.element.selector).toBe('body > h1#heading');
+  expect(msg.payload?.targets[0]?.element.tag).toBe('h1');
+  expect(msg.payload?.targets[0]?.anchor).toEqual(HEADING_ANCHOR);
 });
 
 // --- 2. Keyboard-only round trip ---
@@ -177,8 +179,8 @@ test('keyboard: Tab to the trigger, Enter opens the composer, Ctrl+Enter sends i
   expect(msg.payload?.intent).toBe('explain');
   expect(msg.payload?.note).toBe('what does this do');
   expect(msg.payload?.mode).toBe('send');
-  expect(msg.payload?.element.selector).toBe('body > h1#heading');
-  expect(msg.payload?.anchor).toEqual(HEADING_ANCHOR);
+  expect(msg.payload?.targets[0]?.element.selector).toBe('body > h1#heading');
+  expect(msg.payload?.targets[0]?.anchor).toEqual(HEADING_ANCHOR);
 });
 
 test('keyboard: a chip can be reached and chosen without a pointer', async ({ page }) => {
@@ -206,14 +208,14 @@ test('keyboard: a chip can be reached and chosen without a pointer', async ({ pa
 test('unanchored: an element with no data-src still opens the picker and posts with anchor: null', async ({ page }) => {
   await openFixtureChromeShell(page);
   const frame = page.frameLocator('iframe');
-  await frame.locator('#footer').click();
+  await frame.locator('#footer').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
   const messages = await received(page, 1);
   expect(messages).toHaveLength(1);
   expect(messages[0]?.payload?.intent).toBe('explain');
-  expect(messages[0]?.payload?.anchor).toBeNull();
+  expect(messages[0]?.payload?.targets[0]?.anchor).toBeNull();
 });
 
 // --- 4. Escape ---
@@ -221,7 +223,7 @@ test('unanchored: an element with no data-src still opens the picker and posts w
 test('escape closes the picker without posting anything and returns focus to whatever opened it', async ({ page }) => {
   await openFixtureChromeShell(page);
   const frame = page.frameLocator('iframe');
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await frame.getByRole('dialog', { name: 'Review this element' }).waitFor();
 
   await page.keyboard.press('Escape');
@@ -296,7 +298,7 @@ test('the full mouse, keyboard, unanchored, and escape sequence never issues a r
   const frame = page.frameLocator('iframe');
 
   // mouse round trip
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
@@ -309,12 +311,12 @@ test('the full mouse, keyboard, unanchored, and escape sequence never issues a r
   await page.keyboard.press('Enter');
 
   // unanchored degradation
-  await frame.locator('#footer').click();
+  await frame.locator('#footer').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Verify' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
   // escape
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await page.keyboard.press('Escape');
 
   expect(violations).toEqual([]);
@@ -344,7 +346,7 @@ test("token invariant: a message from a different session's token is structurall
     });
   });
   const { frame, load: otherLoad } = await openRealChromeShell(page, ctx.port, otherKey);
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
@@ -394,7 +396,7 @@ test("token invariant: a message from a stale (superseded) load is rejected agai
   const currentLoad = await beginArtifactLoad(ctx.port, staleKey);
   expect(currentLoad.artifactLoadToken).not.toBe(staleLoad.artifactLoadToken);
 
-  await frame.locator('#heading').click();
+  await frame.locator('#heading').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
@@ -442,7 +444,7 @@ test('every posted intent is one of the 5 closed-set values -- never an arbitrar
   const expectedIntents = ['explain', 'verify', 'deeper', 'fix-artifact', 'fix-code'];
 
   for (let i = 0; i < labels.length; i++) {
-    await frame.locator('#heading').click();
+    await frame.locator('#heading').click({ button: 'right' });
     await frame.locator('.illum-chip', { hasText: labels[i] as string }).click();
     await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
   }
@@ -465,7 +467,7 @@ test('clicking the prose inside an anchored block dispatches with that block anc
   const load = await openFixtureChromeShell(page);
   const frame = page.frameLocator('iframe');
 
-  await frame.locator('#blockprose').click();
+  await frame.locator('#blockprose').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
@@ -473,27 +475,27 @@ test('clicking the prose inside an anchored block dispatches with that block anc
   const msg = messages[0];
   if (!msg) throw new Error('unreachable: messages.length === 1');
   expect(msg.artifact_load_token).toBe(load.artifactLoadToken);
-  expect(msg.payload?.anchor).toEqual({
+  expect(msg.payload?.targets[0]?.anchor).toEqual({
     src: 'src/example/block.ts',
     rev: 'abc123',
     anchorHash: 'block-anchor-hash',
   });
   // Retargeted to the block, not left pointing at the paragraph -- the block
   // is what carries the citation and what the hover affordance highlights.
-  expect(msg.payload?.element.tag).toBe('div');
-  expect(msg.payload?.element.selector).toBe('body > div#block');
+  expect(msg.payload?.targets[0]?.element.tag).toBe('div');
+  expect(msg.payload?.targets[0]?.element.selector).toBe('body > div#block');
 });
 
 test('clicking the citation line inside an anchored block anchors the same way', async ({ page }) => {
   await openFixtureChromeShell(page);
   const frame = page.frameLocator('iframe');
 
-  await frame.locator('#blockcite').click();
+  await frame.locator('#blockcite').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
   const messages = await received(page, 1);
-  expect(messages[0]?.payload?.anchor?.src).toBe('src/example/block.ts');
+  expect(messages[0]?.payload?.targets[0]?.anchor?.src).toBe('src/example/block.ts');
 });
 
 test('an element with nothing anchored above it still degrades gracefully', async ({ page }) => {
@@ -502,22 +504,23 @@ test('an element with nothing anchored above it still degrades gracefully', asyn
   await openFixtureChromeShell(page);
   const frame = page.frameLocator('iframe');
 
-  await frame.locator('#footer').click();
+  await frame.locator('#footer').click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Explain' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
 
   const messages = await received(page, 1);
-  expect(messages[0]?.payload?.anchor).toBeNull();
-  expect(messages[0]?.payload?.element.tag).toBe('footer');
+  expect(messages[0]?.payload?.targets[0]?.anchor).toBeNull();
+  expect(messages[0]?.payload?.targets[0]?.element.tag).toBe('footer');
 });
 
 // --- 9. The picker opens where you pointed --------------------------------
 
 test('the picker opens at the pointer, not at the corner of a full-width container', async ({ page }) => {
-  // Clicking a page margin selects whatever full-width container is under it,
-  // whose rect starts at x=0 and runs past the bottom of the viewport. Opening
-  // below that rect flipped the menu above it, clamped to zero, and parked it
-  // in the top-left corner -- nowhere near the click.
+  // Right-clicking a page margin targets whatever full-width container is
+  // under it, whose rect starts at x=0 and runs past the bottom of the
+  // viewport. Opening below that rect flipped the menu above it, clamped to
+  // zero, and parked it in the top-left corner -- nowhere near the pointer.
+  // The gesture moved to right-click (ADR-101); the property is unchanged.
   await openFixtureChromeShell(page);
   const frame = page.frameLocator('iframe');
 
@@ -526,7 +529,7 @@ test('the picker opens at the pointer, not at the corner of a full-width contain
   if (!frameBox) return;
   const x = frameBox.x + frameBox.width - 60; // right margin, past the prose
   const y = frameBox.y + 320;
-  await page.mouse.click(x, y);
+  await page.mouse.click(x, y, { button: 'right' });
 
   const menu = await frame.getByRole('dialog', { name: 'Review this element' }).boundingBox();
   expect(menu).not.toBeNull();

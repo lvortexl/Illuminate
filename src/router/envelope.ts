@@ -26,7 +26,7 @@ import { resolve as resolveAnchor } from '../provenance/resolve.ts';
 import type { RepoContext } from './pool-registry.ts';
 import type { ResolveResult } from '../provenance/types.ts';
 import type { GitBatchPool } from '../provenance/git-batch-pool.ts';
-import type { DispatchElement, DispatchEnvelope, DispatchSource, Tier } from './types.ts';
+import type { DispatchElement, DispatchEnvelope, DispatchSource, DispatchTarget, Tier } from './types.ts';
 import type { TypedIntentPayload } from '../shared/intent.ts';
 
 /**
@@ -129,38 +129,49 @@ export async function buildDispatchEnvelope(
   const tools = toolsForRole(role);
 
   const dispatch_id = randomBytes(24).toString('base64url');
-  const element: DispatchElement = { ...payload.element };
 
   // Step 2/3 -- anchor handling, strictly after policy is already decided.
-  let source: DispatchSource | null = null;
-  if (payload.anchor !== null) {
-    const { path, range } = splitAnchorSrc(payload.anchor.src);
-    const getRepoContext = deps?.getRepoContext ?? getRepoContextReal;
-    const resolve = deps?.resolve ?? resolveAnchor;
-    const { repoRoot, pool } = getRepoContext(artifactDir);
-    const result = await resolve(
-      repoRoot,
-      { path, range, rev: payload.anchor.rev ?? undefined, anchorHash: payload.anchor.anchorHash ?? '' },
-      pool,
-    );
-    source = {
-      path,
-      rev: result.resolvedRev,
-      range: result.resolvedRange,
-      status: result.status,
-      content: result.content,
-    };
+  //
+  // ADR-102: resolved per selected section, in selection order. The repo
+  // context is fetched ONCE for the whole dispatch rather than per target:
+  // every target in one dispatch belongs to the same artifact, so they share
+  // a repo root and a git batch pool, and re-probing per target would spawn
+  // a fresh set of git processes for each selected section.
+  const getRepoContext = deps?.getRepoContext ?? getRepoContextReal;
+  const resolve = deps?.resolve ?? resolveAnchor;
+  const targets: DispatchTarget[] = [];
+  let repoContext: RepoContext | null = null;
+  for (const target of payload.targets) {
+    const element: DispatchElement = { ...target.element };
+    let source: DispatchSource | null = null;
+    if (target.anchor !== null) {
+      const { path, range } = splitAnchorSrc(target.anchor.src);
+      repoContext ??= getRepoContext(artifactDir);
+      const { repoRoot, pool } = repoContext;
+      const result = await resolve(
+        repoRoot,
+        { path, range, rev: target.anchor.rev ?? undefined, anchorHash: target.anchor.anchorHash ?? '' },
+        pool,
+      );
+      source = {
+        path,
+        rev: result.resolvedRev,
+        range: result.resolvedRange,
+        status: result.status,
+        content: result.content,
+      };
+    }
+    targets.push({ element, source });
   }
 
   return {
-    protocol: 'illuminate.dispatch/1',
+    protocol: 'illuminate.dispatch/2',
     dispatch_id,
     intent: payload.intent,
     role,
     model_tier: tier,
     deadline_ms: DEADLINE_MS_BY_TIER[tier],
-    element,
-    source,
+    targets,
     return_to: `illuminate answer --dispatch ${dispatch_id} --port ${String(port)} --stdin`,
     return_contract: payload.learnerNote !== null ? SELF_EXPLANATION_RETURN_CONTRACT : RETURN_CONTRACT,
     tools,

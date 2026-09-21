@@ -95,6 +95,17 @@ export interface DispatchElement {
   readonly suffixContext: string | null;
 }
 
+/** One selected section as it reaches the agent: the element, plus the
+ * source resolved for its anchor (`null` when it carried no `data-src`).
+ *
+ * ADR-102: a dispatch carries a list of these. The per-target `source.status`
+ * is what lets an agent say WHICH section it could not read, instead of
+ * refusing the whole request because one of several was unanchored. */
+export interface DispatchTarget {
+  readonly element: DispatchElement;
+  readonly source: DispatchSource | null;
+}
+
 /**
  * The envelope a dispatch travels in, from the router to the subagent
  * orchestrator and (via `PollResponse`) onward to the browser.
@@ -107,14 +118,20 @@ export interface DispatchElement {
  * receipt must look like.
  */
 export interface DispatchEnvelope {
-  readonly protocol: 'illuminate.dispatch/1';
+  readonly protocol: 'illuminate.dispatch/2';
   readonly dispatch_id: string;
   readonly intent: Intent;
   readonly role: Role;
   readonly model_tier: Tier;
   readonly deadline_ms: number;
-  readonly element: DispatchElement;
-  readonly source: DispatchSource | null;
+  /** ADR-102: every section the reader selected, in selection order, each
+   * with its own resolved source. Never empty.
+   *
+   * Replaced the singular `element`/`source` pair when multi-select landed.
+   * Keeping a "primary" element beside the list would have been two sources
+   * of truth for the same fact, so the protocol version moved instead of
+   * pretending compatibility. */
+  readonly targets: readonly DispatchTarget[];
   readonly return_to: string;
   readonly return_contract: string;
   /** EDU-01's zero-tool guarantee, made wire-visible: `[]` for the tutor

@@ -314,6 +314,7 @@ async function pollCommand(args: readonly string[]): Promise<number> {
     process.stderr.write('illuminate poll: missing <file.html> argument\n');
     return 1;
   }
+  const follow = args.includes('--follow');
 
   const resolved = await resolveFileSession(file);
   if (!resolved.ok) {
@@ -338,6 +339,37 @@ async function pollCommand(args: readonly string[]): Promise<number> {
     if (timeoutMs !== undefined && Number.isFinite(timeoutMs)) {
       url.searchParams.set('timeoutMs', String(timeoutMs));
     }
+
+    // --follow (ADR-104): stay attached. A one-shot poll means a harness has
+    // to re-invoke the CLI in a loop and re-resolve the daemon every time,
+    // and anything queued between two invocations waits for the next one.
+    // Looping here keeps ONE long poll outstanding at all times.
+    //
+    // stdout is NDJSON -- one whole envelope per line, never the compact
+    // human rendering -- because the reader is a harness parsing a pipe, and
+    // one-JSON-per-line needs no client library. Each envelope already
+    // carries the role, model_tier and tools the agent for it should run
+    // with; they are the router policy table's resolved values, surfaced
+    // here, never re-derived.
+    if (follow) {
+      for (;;) {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          process.stderr.write(`illuminate poll: ${body.error ?? `request failed with status ${res.status}`}\n`);
+          return 1;
+        }
+        const pollResponse = (await res.json()) as PollResponse;
+        for (const envelope of pollResponse.dispatches) {
+          // One line, one envelope, flushed as it arrives -- a harness
+          // blocked on readline must not wait for a batch to fill.
+          process.stdout.write(`${JSON.stringify(envelope)}\n`);
+        }
+        // A timeout is not an end condition here: it is the idle case, and
+        // staying attached through it is the entire point of --follow.
+      }
+    }
+
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };

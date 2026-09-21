@@ -89,7 +89,7 @@ async function verifyClickDispatchId(page: Page, frame: FrameLocator, selector: 
   const responsePromise = page.waitForResponse(
     (res) => res.url().includes('/dispatches') && res.request().method() === 'POST',
   );
-  await frame.locator(selector).click();
+  await frame.locator(selector).click({ button: 'right' });
   await frame.locator('.illum-chip', { hasText: 'Verify' }).click();
   await frame.locator('.illum-composer-actions button', { hasText: 'Send' }).click();
   const response = await responsePromise;

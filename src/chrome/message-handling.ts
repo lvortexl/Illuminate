@@ -1,6 +1,6 @@
 import { isArtifactToChromeType, isFromCurrentArtifactLoad } from '../shared/protocol.ts';
 import { isIntent, INTENT_PROTOCOL_VERSION } from '../shared/intent.ts';
-import type { TypedIntentPayload, IntentElement, IntentAnchor, Intent } from '../shared/intent.ts';
+import type { TypedIntentPayload, IntentElement, IntentAnchor, IntentTarget, Intent } from '../shared/intent.ts';
 import { DISMISS_PROTOCOL_VERSION } from '../shared/dismiss.ts';
 
 /**
@@ -67,8 +67,7 @@ export function extractTypedIntent(data: unknown, currentLoadToken: string): Typ
   const {
     protocol,
     intent,
-    element: rawElement,
-    anchor: rawAnchor,
+    targets: rawTargets,
     depth,
     parent_dispatch: parentDispatch,
     learnerNote,
@@ -78,11 +77,19 @@ export function extractTypedIntent(data: unknown, currentLoadToken: string): Typ
   if (protocol !== INTENT_PROTOCOL_VERSION) return null;
   if (typeof intent !== 'string' || !isIntent(intent)) return null;
 
-  const element = parseElement(rawElement);
-  if (element === null) return null;
-
-  const anchorResult = parseAnchor(rawAnchor);
-  if (!anchorResult.ok) return null;
+  // ADR-102: a LIST of selected sections. Every entry must parse; one bad
+  // target rejects the whole message rather than being dropped, so a caller
+  // never silently gets an answer about fewer sections than it asked about.
+  if (!Array.isArray(rawTargets) || rawTargets.length === 0) return null;
+  const targets: IntentTarget[] = [];
+  for (const rawTarget of rawTargets) {
+    if (!isRecord(rawTarget)) return null;
+    const element = parseElement(rawTarget.element);
+    if (element === null) return null;
+    const anchorResult = parseAnchor(rawTarget.anchor);
+    if (!anchorResult.ok) return null;
+    targets.push({ element, anchor: anchorResult.anchor });
+  }
 
   if (typeof depth !== 'number') return null;
   if (parentDispatch !== null && typeof parentDispatch !== 'string') return null;
@@ -108,8 +115,7 @@ export function extractTypedIntent(data: unknown, currentLoadToken: string): Typ
   return {
     protocol: INTENT_PROTOCOL_VERSION,
     intent,
-    element,
-    anchor: anchorResult.anchor,
+    targets,
     depth,
     parent_dispatch: parentDispatch as string | null,
     learnerNote: learnerNote as string | null,
@@ -227,8 +233,8 @@ export interface ComposerAttachmentInput {
 }
 
 export interface ComposerSubmissionMessage {
-  readonly element: IntentElement;
-  readonly anchor: IntentAnchor | null;
+  /** ADR-102: every section the reader had selected when they submitted. */
+  readonly targets: readonly IntentTarget[];
   readonly label: string;
   readonly intent: Intent;
   readonly note: string | null;
@@ -264,11 +270,19 @@ export function extractComposerSubmission(data: unknown, currentLoadToken: strin
 
   if (!isRecord(payload)) return null;
 
-  const element = parseElement(payload.element);
-  if (element === null) return null;
-
-  const anchorResult = parseAnchor(payload.anchor);
-  if (!anchorResult.ok) return null;
+  // ADR-102: one bad target rejects the whole submission rather than being
+  // dropped, so the human never gets an answer about fewer sections than they
+  // selected without being told.
+  if (!Array.isArray(payload.targets) || payload.targets.length === 0) return null;
+  const targets: IntentTarget[] = [];
+  for (const rawTarget of payload.targets) {
+    if (!isRecord(rawTarget)) return null;
+    const element = parseElement(rawTarget.element);
+    if (element === null) return null;
+    const anchorResult = parseAnchor(rawTarget.anchor);
+    if (!anchorResult.ok) return null;
+    targets.push({ element, anchor: anchorResult.anchor });
+  }
 
   const { label, intent, note, mode } = payload;
   if (typeof label !== 'string') return null;
@@ -286,5 +300,5 @@ export function extractComposerSubmission(data: unknown, currentLoadToken: strin
     attachments.push({ dataUrl, name, mediaType });
   }
 
-  return { element, anchor: anchorResult.anchor, label, intent, note: note as string | null, attachments, mode };
+  return { targets, label, intent, note: note as string | null, attachments, mode };
 }
