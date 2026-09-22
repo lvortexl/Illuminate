@@ -172,7 +172,7 @@ export async function buildDispatchEnvelope(
     model_tier: tier,
     deadline_ms: DEADLINE_MS_BY_TIER[tier],
     targets,
-    return_to: `illuminate answer --dispatch ${dispatch_id} --port ${String(port)} --stdin`,
+    return_to: `illuminate answer --dispatch ${dispatch_id} --port ${String(port)} --model <model-you-ran> --tier <haiku|sonnet|opus> --stdin`,
     return_contract: payload.learnerNote !== null ? SELF_EXPLANATION_RETURN_CONTRACT : RETURN_CONTRACT,
     tools,
     depth: payload.depth,

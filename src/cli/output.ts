@@ -44,14 +44,23 @@ export function wrapLine(text: string, maxWidth: number = MAX_WIDTH): string[] {
   return lines;
 }
 
+/** The usage column of `--help`. A usage longer than this wraps (ADR-112). */
+const USAGE_PAD = 32;
+
 export function renderHelp(commands: readonly CommandEntry[]): string {
-  const lines = [
-    'illuminate -- point at an element, get a grounded explanation',
-    '',
-    ...commands.map((c) => `  ${c.usage.padEnd(32)} ${c.summary}`),
-    '',
-    'Next: illuminate design (why) -> illuminate playbook <id> (how)',
-  ];
+  const lines = ['illuminate -- point at an element, get a grounded explanation', ''];
+  for (const c of commands) {
+    if (c.usage.length <= USAGE_PAD) {
+      lines.push(`  ${c.usage.padEnd(USAGE_PAD)} ${c.summary}`);
+    } else {
+      // A usage longer than the pad takes its own line and its summary sits
+      // beneath it in the summary column, so the flags stay complete and
+      // every line stays inside the 100-column budget (ADR-112).
+      lines.push(`  ${c.usage}`);
+      lines.push(`${' '.repeat(USAGE_PAD + 3)}${c.summary}`);
+    }
+  }
+  lines.push('', 'Next: illuminate design (why) -> illuminate playbook <id> (how)');
   return lines.join('\n') + '\n';
 }
 
@@ -178,7 +187,7 @@ export function renderPollResult(response: PollResponse, port: number): string {
     for (const attachment of envelope.attachments) {
       lines.push(`  image: ${attachment.path}`);
     }
-    lines.push(`  -> illuminate answer --dispatch ${envelope.dispatch_id} --port ${String(port)} --stdin`);
+    lines.push(`  -> illuminate answer --dispatch ${envelope.dispatch_id} --port ${String(port)} --model <model-you-ran> --tier <haiku|sonnet|opus> --stdin`);
   }
   return lines.join('\n') + '\n';
 }

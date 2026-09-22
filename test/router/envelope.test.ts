@@ -158,7 +158,7 @@ test('buildDispatchEnvelope: return_to is exactly the documented answer command,
 
   const envelope = await buildDispatchEnvelope(payload, repo.root, PORT);
 
-  assert.strictEqual(envelope.return_to, `illuminate answer --dispatch ${envelope.dispatch_id} --port ${String(PORT)} --stdin`);
+  assert.strictEqual(envelope.return_to, `illuminate answer --dispatch ${envelope.dispatch_id} --port ${String(PORT)} --model <model-you-ran> --tier <haiku|sonnet|opus> --stdin`);
 });
 
 test('buildDispatchEnvelope: return_contract is a fixed, non-empty instruction, identical across calls', async (t) => {

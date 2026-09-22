@@ -146,8 +146,10 @@ These come from illuminate's own routing policy. Re-deriving them from the artif
 Return each answer on stdin — the envelope names the exact command in `return_to`:
 
 ```sh
-echo "..." | illuminate answer --dispatch <id> --port <port> --stdin
+echo "..." | illuminate answer --dispatch <id> --port <port> --model <name> --tier <haiku|sonnet|opus> --stdin
 ```
+
+Declare the model and tier you actually ran; the optional `--cost-usd`, `--input-tokens`, `--output-tokens`, `--cache-read-input-tokens` and `--wall-ms` flags are what `illuminate audit` sums.
 
 Answers may come back in any order; a slow verification never blocks a fast explanation. Run `illuminate playbook attach` for the full contract.
 
@@ -156,14 +158,18 @@ If no harness is polling and a `claude` binary is on PATH, illuminate shells out
 ## Commands
 
 ```
-illuminate <file.html> [--no-open]              Serve an artifact and open it
-illuminate stop <dir> [--force]                 Stop the daemon serving <dir>
-illuminate poll <file.html> [--follow]          Wait for work; --follow stays attached
-illuminate answer --dispatch <id> --port <port> Submit an answer via stdin
-illuminate audit <file.html>                    Per-dispatch cost, tier deviations, refusals
-illuminate export <file.html> [--out <path>]    Standalone copy, local assets inlined
-illuminate design                               Why illuminate is built this way
-illuminate playbook [id]                        Focused guidance; lists ids with no argument
+illuminate <file.html> [--no-open]                Serve an artifact and open it
+illuminate stop <dir|file.html> [--force]         Stop the daemon for a directory or artifact
+illuminate poll <file.html> [--follow]            Wait for work; --follow stays attached
+illuminate answer --dispatch <id> --port <port> \
+                  --model <name> --tier <haiku|sonnet|opus> --stdin
+                                                  Submit an answer via stdin
+illuminate audit <file.html>                      Per-dispatch cost, tier deviations, refusals
+illuminate export <file.html> [--out <path>] [--allow-remote]
+                                                  Standalone copy; fails if a remote reference survives
+illuminate design                                 Why illuminate is built this way
+illuminate playbook [id]                          Focused guidance; lists ids with no argument
+illuminate --version | --help
 ```
 
 Guidance is progressively disclosed: `--help` → `design` → `playbook <id>`. An agent pays tokens only for what it needs.

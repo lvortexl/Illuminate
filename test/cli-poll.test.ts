@@ -167,7 +167,7 @@ test('illuminate poll <file.html> sees a real dispatch enqueued while it is alre
       assert.ok(stdoutBuf.includes(dispatchId), `stdout did not include the dispatch id: ${JSON.stringify(stdoutBuf)}`);
       assert.match(stdoutBuf, /tutor\/haiku/, 'explain resolves to tutor/haiku per the locked policy table');
       assert.match(stdoutBuf, /explain/);
-      const expectedCommand = `illuminate answer --dispatch ${dispatchId} --port ${record.port} --stdin`;
+      const expectedCommand = `illuminate answer --dispatch ${dispatchId} --port ${record.port} --model <model-you-ran> --tier <haiku|sonnet|opus> --stdin`;
       assert.ok(
         stdoutBuf.includes(expectedCommand),
         `stdout did not include the exact runnable answer command ${JSON.stringify(expectedCommand)}: ${JSON.stringify(stdoutBuf)}`,

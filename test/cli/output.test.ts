@@ -42,6 +42,22 @@ test('renderHelp: real registry data fits <=20 lines, each <=100 columns, ASCII-
   assert.match(help, /playbook/);
 });
 
+test('renderHelp: a usage longer than the 32-column pad is wrapped -- usage on its own line, summary indented beneath it, every line still <=100 columns (ADR-112)', () => {
+  const longUsage = 'illuminate answer --dispatch <id> --port <port> --model <name> --tier <haiku|sonnet|opus> --stdin';
+  const help = renderHelp([{ name: 'answer', usage: longUsage, summary: 'Submit an answer via stdin; needs no session key.' }]);
+  const lines = help.split('\n');
+  assert.ok(lines.includes(`  ${longUsage}`), `usage line missing: ${help}`);
+  assert.ok(lines.includes(`${' '.repeat(35)}Submit an answer via stdin; needs no session key.`), `summary line missing: ${help}`);
+  for (const line of lines) {
+    assert.ok(line.length <= 100, `renderHelp line exceeds 100 columns: ${JSON.stringify(line)}`);
+  }
+});
+
+test('renderHelp: a usage that fits the pad still renders on one line', () => {
+  const help = renderHelp([{ name: 'design', usage: 'illuminate design', summary: 'Why illuminate is built this way.' }]);
+  assert.ok(help.includes(`  ${'illuminate design'.padEnd(32)} Why illuminate is built this way.`), help);
+});
+
 test('renderDesign: ASCII-only, non-empty, points to playbook', () => {
   const design = renderDesign();
   assert.ok(isAsciiOnly(design), 'renderDesign output is not ASCII-only');

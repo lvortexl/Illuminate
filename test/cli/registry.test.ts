@@ -52,3 +52,20 @@ test('PLAYBOOKS: every title is non-empty', () => {
     assert.ok(playbook.title.length > 0, `${playbook.id} has an empty title`);
   }
 });
+
+test('COMMANDS: the answer usage names every flag answerCommand refuses to run without (CLI-01)', () => {
+  const answer = COMMANDS.find((c) => c.name === 'answer');
+  assert.ok(answer, 'answer command missing');
+  for (const flag of ['--dispatch <id>', '--port <port>', '--model <name>', '--tier <haiku|sonnet|opus>', '--stdin']) {
+    assert.ok(answer.usage.includes(flag), `answer usage lacks ${flag}: ${answer.usage}`);
+  }
+});
+
+test('PLAYBOOKS: the dispatches playbook documents the cost flags illuminate audit sums (CLI-07)', () => {
+  const dispatches = PLAYBOOKS.find((p) => p.id === 'dispatches');
+  assert.ok(dispatches, 'dispatches playbook missing');
+  const body = dispatches.body.join('\n');
+  for (const flag of ['--input-tokens', '--output-tokens', '--cache-read-input-tokens', '--cost-usd', '--wall-ms']) {
+    assert.ok(body.includes(flag), `dispatches playbook never mentions ${flag}`);
+  }
+});
