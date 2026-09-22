@@ -7,6 +7,7 @@ import {
 import { createRail } from './rail.ts';
 import type { QueuedNote, ConnectionState } from './rail.ts';
 import type { ComposerAttachmentInput, ComposerSubmissionMessage } from './message-handling.ts';
+import { rejectedDispatchNotice } from './rejected-dispatch.ts';
 import { INTENT_PROTOCOL_VERSION } from '../shared/intent.ts';
 import type { WireAnnotationStore, WireFinding } from '../sdk/protocol-in.ts';
 import { ARTIFACT_POST_TARGET_ORIGIN } from '../shared/protocol.ts';
@@ -577,9 +578,7 @@ window.addEventListener('message', (event: MessageEvent) => {
             .json()
             .catch(() => ({}))
             .then((body: unknown) => {
-              const error = (body as { error?: unknown }).error;
-              const detail = typeof error === 'string' && error.length > 0 ? error : res.statusText || 'no detail';
-              rail.showNotice(`illuminate could not queue that request (HTTP ${String(res.status)}): ${detail}`);
+              rail.showNotice(rejectedDispatchNotice(res.status, res.statusText, body));
               return undefined;
             });
         }
