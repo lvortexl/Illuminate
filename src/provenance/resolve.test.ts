@@ -575,3 +575,22 @@ test('a cited file tracked at HEAD but deleted WITHOUT committing resolves to ca
   assert.strictEqual(result.content, null);
   assert.match(result.reason ?? '', /missing from the working tree/);
 });
+
+test('a cited file replaced by a DIRECTORY in the working tree resolves to cannot-determine with the cause-agnostic reason, not the deletion wording', async (t) => {
+  const { repo, pool } = useRepoAndPool(t);
+  const region = ['widget one', 'widget two', 'widget three'];
+  const rev = repo.commitFile('gizmo.ts', block(region), 'add gizmo.ts');
+
+  rmSync(join(repo.root, 'gizmo.ts'));
+  mkdirSync(join(repo.root, 'gizmo.ts'));
+
+  const result = await resolve(
+    repo.root,
+    { path: 'gizmo.ts', range: 'L1-L3', rev, anchorHash: anchorHash(region.join('\n')) },
+    pool,
+  );
+
+  assert.strictEqual(result.status, 'cannot-determine', `expected cannot-determine, got ${result.status}`);
+  assert.match(result.reason ?? '', /unable to determine/);
+  assert.doesNotMatch(result.reason ?? '', /missing from the working tree/);
+});

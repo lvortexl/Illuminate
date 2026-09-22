@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AnchorRef, DriftState, ResolveResult } from './types.ts';
 import { parseAnchor, parseFileReference } from './anchor.ts';
 import type { AnchorInput } from './anchor.ts';
@@ -392,15 +393,18 @@ async function resolveGitPresent(
         return cannotDetermine('unable to determine whether the working tree has uncommitted changes at the anchored path');
       }
     } else {
+      // Decided BEFORE the spawn so the reason names only what is known: a
+      // file that is gone from the working tree (deleted without committing)
+      // is reversible, so it is neither `lost` nor clean. Any other failure
+      // of the spawn gets the same cause-agnostic answer the batched branch
+      // above gives -- never a guess dressed as a diagnosis.
+      if (!existsSync(join(repoRoot, anchor.path))) {
+        return cannotDetermine('anchored file is missing from the working tree (deleted without committing)');
+      }
       try {
         dirty = isWorkingTreeDirtyAt(repoRoot, anchor.path, blobAtHead.sha);
       } catch {
-        // `git hash-object` exits 128 when the working-tree file is gone: the
-        // file was deleted without committing. That is reversible (a rename
-        // in progress, a stash), so it is neither `lost` nor clean. The
-        // batched sibling above already maps a missing path to
-        // cannot-determine; this is the same answer on the unbatched path.
-        return cannotDetermine('anchored file is missing from the working tree (deleted without committing)');
+        return cannotDetermine('unable to determine whether the working tree has uncommitted changes at the anchored path');
       }
     }
     if (dirty) {
