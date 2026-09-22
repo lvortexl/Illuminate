@@ -383,3 +383,65 @@ test('illuminate poll --follow stays attached past the first dispatch and stream
     }
   });
 });
+
+test('illuminate poll --follow exits 0 with a one-line message once the session has ended, instead of spinning', async () => {
+  await withTempDir(async (dir) => {
+    const file = join(dir, 'artifact.html');
+    await writeFile(file, '<!doctype html><html><body><p>hi</p></body></html>');
+    try {
+      const child = spawn(process.execPath, ['dist/cli.mjs', 'poll', file, '--follow'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stderrBuf = '';
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderrBuf += chunk.toString();
+      });
+      const exited = new Promise<number | null>((resolvePromise) => child.on('exit', (code) => resolvePromise(code)));
+
+      // Wait for the daemon the poll child spawned, then enqueue TWO
+      // dispatches. Two is the whole point: a one-shot poll would print the
+      // first and exit, so a second line is what proves it stayed attached.
+      const deadline = Date.now() + 8000;
+      let record = await readLock(lockPathFor(dir));
+      while (!record && Date.now() < deadline) {
+        await sleep(50);
+        record = await readLock(lockPathFor(dir));
+      }
+      assert.ok(record, 'daemon never came up');
+      const key = sessionKey(await realpath(file));
+
+      // The lockfile lands BEFORE the poll child has finished registering its
+      // session, so an immediate enqueue races it and 404s "unknown session".
+      // Wait for the session itself rather than for the daemon.
+      const port = record.port;
+      const sessionDeadline = Date.now() + 8000;
+      for (;;) {
+        const probe = await fetch(`http://127.0.0.1:${port}/api/${key}/dispatches`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            intent: 'explain',
+            targets: [{ element: { uid: 'one', selector: '#one', tag: 'p', text: 'task text for one' }, anchor: null }],
+            note: null,
+          }),
+        });
+        if (probe.status === 200) break;
+        assert.ok(Date.now() < sessionDeadline, `session never registered: ${probe.status} ${await probe.text()}`);
+        await sleep(100);
+      }
+
+      const ended = await fetch(`http://127.0.0.1:${port}/api/${key}/end`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
+      assert.strictEqual(ended.status, 200, `end session failed: ${await ended.text()}`);
+
+      const code = await Promise.race([exited, sleep(8000).then(() => 'timeout' as const)]);
+      assert.strictEqual(code, 0, `expected the follow loop to exit 0 after the session ended; got ${String(code)}; stderr: ${stderrBuf}`);
+      assert.match(stderrBuf, /session has ended/);
+    } finally {
+      await stopDaemon(dir);
+    }
+  });
+});

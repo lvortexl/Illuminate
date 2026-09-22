@@ -14,6 +14,7 @@ import {
   renderAuditResult,
   renderExportResult,
 } from './cli/output.ts';
+import { nextFollowAction } from './cli/follow.ts';
 import { TIERS, VERDICTS } from './router/types.ts';
 import type { PollResponse } from './router/types.ts';
 import type { AuditSummary } from './router/ingest.ts';
@@ -291,6 +292,26 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+/** Sleeps for `ms` unless `signal` aborts first; the follow loop's SIGINT
+ * must cut a back-off short, not wait it out. */
+function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolvePromise) => {
+    if (signal.aborted) {
+      resolvePromise();
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      resolvePromise();
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolvePromise();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /**
  * `illuminate poll <file.html> [--timeout-ms N]` -- POLL-01's agent-facing
  * surface. Resolves the daemon/session exactly like `illuminate
@@ -352,6 +373,7 @@ async function pollCommand(args: readonly string[]): Promise<number> {
     // with; they are the router policy table's resolved values, surfaced
     // here, never re-derived.
     if (follow) {
+      let consecutiveDisconnects = 0;
       for (;;) {
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) {
@@ -365,8 +387,20 @@ async function pollCommand(args: readonly string[]): Promise<number> {
           // blocked on readline must not wait for a batch to fill.
           process.stdout.write(`${JSON.stringify(envelope)}\n`);
         }
-        // A timeout is not an end condition here: it is the idle case, and
-        // staying attached through it is the entire point of --follow.
+        // The non-dispatch statuses are states, not empty batches (RT-01):
+        // spinning through `browser_disconnected` rewrote the session file
+        // on every iteration, and `ended` never returned at all.
+        const action = nextFollowAction(pollResponse.status, consecutiveDisconnects);
+        consecutiveDisconnects = pollResponse.status === 'browser_disconnected' ? consecutiveDisconnects + 1 : 0;
+        if (action.kind === 'exit') {
+          process.stderr.write(`${action.message}\n`);
+          return action.code;
+        }
+        if (action.kind === 'sleep') {
+          if (action.notice !== null) process.stderr.write(`${action.notice}\n`);
+          await sleepUnlessAborted(action.ms, controller.signal);
+          if (controller.signal.aborted) return 130;
+        }
       }
     }
 
