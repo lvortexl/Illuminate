@@ -521,6 +521,16 @@ test('a dispatch the daemon rejects is reported in the rail, in illuminate\'s vo
   const notice = page.locator('.il-rail-notice');
   await expect(notice).toHaveCount(1);
   await expect(notice).toContainText('illuminate could not queue that request (HTTP 500): synthetic failure');
+  // The notice must not push the card list or the compose bar out of the
+  // rail: four children, four grid rows, no implicit overflow row.
+  const railBox = await page.locator('.il-rail').boundingBox();
+  const bodyBox = await page.locator('.il-rail-body').boundingBox();
+  const composeBox = await page.locator('.il-compose').boundingBox();
+  expect(railBox && bodyBox && composeBox).toBeTruthy();
+  if (!railBox || !bodyBox || !composeBox) return;
+  expect(bodyBox.height).toBeGreaterThan(0);
+  expect(bodyBox.y + bodyBox.height).toBeLessThanOrEqual(composeBox.y + 1);
+  expect(composeBox.y + composeBox.height).toBeLessThanOrEqual(railBox.y + railBox.height + 1);
   await expect(page.locator('.il-msg[data-from="agent"]')).toHaveCount(0);
   await notice.getByRole('button', { name: 'Dismiss' }).click();
   await expect(notice).toHaveCount(0);

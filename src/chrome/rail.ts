@@ -220,6 +220,8 @@ export function createRail(options: RailOptions): Rail {
   // `panel.replaceChildren()` -- that rebuild only ever touches `body`'s
   // own descendants, never a root-level sibling.
   const notices = el('div', 'il-rail-notices');
+  notices.setAttribute('role', 'status');
+  notices.setAttribute('aria-live', 'polite');
 
   const body = el('div', 'il-rail-body');
   for (const panel of panels.values()) body.appendChild(panel);
@@ -643,7 +645,6 @@ ${note.note}`);
     },
     showNotice(text: string): void {
       const notice = el('div', 'il-rail-notice');
-      notice.setAttribute('role', 'status');
       notice.appendChild(el('span', 'il-rail-notice-text', text));
       const dismiss = el('button', 'il-btn il-btn--sm', 'Dismiss');
       dismiss.type = 'button';

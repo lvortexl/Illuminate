@@ -161,7 +161,7 @@ body {
 .il-rail {
   grid-area: rail;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   min-height: 0;
   background: var(--il-surface);
   border-left: 1px solid var(--il-hairline);
@@ -244,6 +244,7 @@ body {
 
 /* ---- Rail: tabs ---------------------------------------------------- */
 .il-tabs {
+  grid-row: 1;
   display: flex;
   gap: 2px;
   padding: var(--il-s2) var(--il-s3) 0;
@@ -283,6 +284,7 @@ body {
 
 /* ---- Rail: scrolling body ------------------------------------------ */
 .il-rail-body {
+  grid-row: 3;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--il-s3);
@@ -598,6 +600,7 @@ body {
 
 /* ---- Composer ------------------------------------------------------ */
 .il-compose {
+  grid-row: 4;
   border-top: 1px solid var(--il-hairline);
   padding: var(--il-s3);
   background: var(--il-surface);
@@ -710,7 +713,7 @@ body {
 .il-notice-title { color: var(--il-ink); font-size: 15px; }
 
 /* ---- Rail notice (rejected dispatch / transport failure, ADR-111) -- */
-.il-rail-notices { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 0; }
+.il-rail-notices { grid-row: 2; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 0; }
 .il-rail-notices:empty { display: none; }
 .il-rail-notice { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--il-hairline); border-left: 3px solid var(--il-accent); background: var(--il-surface-raised); color: var(--il-ink); font-size: 13px; line-height: 1.4; }
 .il-rail-notice-text { flex: 1; }
