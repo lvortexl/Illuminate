@@ -27,7 +27,7 @@ import { maybeSelfDispatch } from './self-dispatch.ts';
 import type { SelfDispatchSpawnFn } from './self-dispatch.ts';
 import { isIntent, buildTypedIntentPayload } from '../shared/intent.ts';
 import type { TypedIntentPayload, IntentElement, IntentAnchor, IntentAttachment, IntentTarget } from '../shared/intent.ts';
-import { AnnotationStoreFile, appendCardEntry, snapshotFromDispatchElement } from '../store/annotation-store.ts';
+import { appendCardEntry, snapshotFromDispatchElement } from '../store/annotation-store.ts';
 import type { CardThreadEntry } from '../store/annotation-store.ts';
 import { FindingsStoreFile, dismissFinding } from '../store/findings-store.ts';
 import { appendFileSync } from 'node:fs';
@@ -78,6 +78,7 @@ function logDispatchSkipped(dispatchId: string, reason: string): void {
 }
 
 import { createStalenessRegistry } from './staleness-registry.ts';
+import { createAnnotationStoreRegistry } from './annotation-store-registry.ts';
 
 /**
  * Sandbox token string, EXACT (03-03-PLAN.md's <interfaces> block; mirrored
@@ -421,6 +422,9 @@ export function createDaemonServer(
     reconcileIntervalMs: opts.stalenessReconcileIntervalMs,
     forceUnhealthy: opts.forceWatcherUnhealthy,
   });
+  // One AnnotationStoreFile per artifact, for the same reason the findings
+  // store lives in the staleness registry: the mutex is per instance (RT-14).
+  const annotationStores = createAnnotationStoreRegistry();
   let shuttingDown = false;
 
   /**
@@ -772,7 +776,7 @@ export function createDaemonServer(
     };
     const primaryTarget = entry.envelope.targets[0];
     if (primaryTarget === undefined) return;
-    await new AnnotationStoreFile(artifactPath).mutate((current) => ({
+    await annotationStores.get(artifactPath).mutate((current) => ({
       next: appendCardEntry(current, {
         parentDispatchId: entry.envelope.parent_dispatch,
         // A card is rendered at ONE place in the artifact, so it is anchored
@@ -1141,7 +1145,7 @@ export function createDaemonServer(
       res.end('Not Found');
       return;
     }
-    const annotations = await new AnnotationStoreFile(sessionRecord.file).read();
+    const annotations = await annotationStores.get(sessionRecord.file).read();
     sendJson(res, 200, annotations);
   }
 
