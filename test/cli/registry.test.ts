@@ -69,3 +69,12 @@ test('PLAYBOOKS: the dispatches playbook documents the cost flags illuminate aud
     assert.ok(body.includes(flag), `dispatches playbook never mentions ${flag}`);
   }
 });
+
+test('PLAYBOOKS: the attach playbook describes poll --follow\'s end states (exit 0 on ended, back-off while the browser is gone)', () => {
+  const attach = PLAYBOOKS.find((p) => p.id === 'attach');
+  assert.ok(attach, 'attach playbook missing');
+  const body = attach.body.join('\n');
+  assert.ok(body.includes('exits 0'), 'attach playbook never says --follow exits 0 when the session ends');
+  assert.ok(body.includes('backs off'), 'attach playbook never says --follow backs off while the browser is gone');
+  assert.ok(body.includes('--tier <haiku|sonnet|opus>'), 'attach playbook must enumerate the tiers like every other description');
+});

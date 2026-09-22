@@ -398,9 +398,9 @@ test('illuminate poll --follow exits 0 with a one-line message once the session 
       });
       const exited = new Promise<number | null>((resolvePromise) => child.on('exit', (code) => resolvePromise(code)));
 
-      // Wait for the daemon the poll child spawned, then enqueue TWO
-      // dispatches. Two is the whole point: a one-shot poll would print the
-      // first and exit, so a second line is what proves it stayed attached.
+      // Wait for the daemon the poll child spawned, then for the session it
+      // registers. One probe dispatch is enough here: the subject of this
+      // test is what --follow does when the session ends, not delivery.
       const deadline = Date.now() + 8000;
       let record = await readLock(lockPathFor(dir));
       while (!record && Date.now() < deadline) {

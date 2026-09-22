@@ -488,7 +488,7 @@ export function createDaemonServer(
       return;
     }
     if (containment.kind === 'forbidden') {
-      sendJson(res, 403, { error: 'file escapes artifact root' });
+      sendJson(res, 403, { error: 'file escapes the artifact root or lies under a dot-prefixed path' });
       return;
     }
 

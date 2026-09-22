@@ -90,6 +90,8 @@ before(async () => {
   await writeFile(join(root, '.git', 'config'), '[core]\n\trepositoryformatversion = 0\n', 'utf8');
   await mkdir(join(root, '.hidden', 'sub'), { recursive: true });
   await writeFile(join(root, '.hidden', 'sub', 'file.txt'), 'hidden\n', 'utf8');
+  await mkdir(join(root, 'visible', '.nested'), { recursive: true });
+  await writeFile(join(root, 'visible', '.nested', 'file.txt'), 'nested under a visible dir\n', 'utf8');
   await mkdir(join(root, 'v1.2'), { recursive: true });
   await writeFile(join(root, 'v1.2', 'file.txt'), 'dotted dir name\n', 'utf8');
 
@@ -185,6 +187,11 @@ test('resolveAssetPath: a file nested inside a dot-directory (.git/config) is fo
 
 test('resolveAssetPath: a file two levels under a dot-directory is forbidden', async () => {
   const result = await resolveAssetPath(root, '/.hidden/sub/file.txt');
+  assert.deepStrictEqual(result, { kind: 'forbidden' });
+});
+
+test('resolveAssetPath: a dot-directory in a NON-leading position (visible/.nested/file.txt) is forbidden', async () => {
+  const result = await resolveAssetPath(root, '/visible/.nested/file.txt');
   assert.deepStrictEqual(result, { kind: 'forbidden' });
 });
 

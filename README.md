@@ -129,7 +129,7 @@ illuminate never calls a model. Your harness does, and attaches once:
 illuminate poll ./architecture.html --follow
 ```
 
-This stays attached and prints **one JSON envelope per line** as each request is queued — review, verification and change requests alike. It is silent while idle, so no output means nothing is waiting, never that the connection dropped.
+This stays attached and prints **one JSON envelope per line** as each request is queued — review, verification and change requests alike. It is silent while idle, so no output means nothing is waiting, never that the connection dropped. When the session ends it prints one line to stderr and exits 0; while the browser tab is closed it backs off and stays attached.
 
 Run a **dedicated agent per envelope**, using the parameters the envelope already carries:
 
@@ -160,7 +160,7 @@ If no harness is polling and a `claude` binary is on PATH, illuminate shells out
 ```
 illuminate <file.html> [--no-open]                Serve an artifact and open it
 illuminate stop <dir|file.html> [--force]         Stop the daemon for a directory or artifact
-illuminate poll <file.html> [--follow]            Wait for work; --follow stays attached
+illuminate poll <file.html> [--follow]            Wait for work; --follow stays attached, exits 0 when the session ends
 illuminate answer --dispatch <id> --port <port> \
                   --model <name> --tier <haiku|sonnet|opus> --stdin
                                                   Submit an answer via stdin
