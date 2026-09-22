@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import { resolve, relative, isAbsolute, basename } from 'node:path';
+import { resolve, relative, isAbsolute, sep } from 'node:path';
 import type { IncomingMessage } from 'node:http';
 
 /**
@@ -18,7 +18,7 @@ export type ContainmentResult =
 /**
  * Resolves a browser-supplied request path against an artifact root,
  * refusing to leave that root by traversal or symlink escape, and refusing
- * dotfiles unconditionally. `not-found` and `forbidden` are deliberately
+ * any dot-prefixed path segment unconditionally. `not-found` and `forbidden` are deliberately
  * distinct result kinds so the caller can map them to 404 vs 403 — but see
  * T-01-15 in this plan's threat model: ENOENT still maps to 404 even when
  * the ENOENT is the result of a traversal probe landing outside `root`, so
@@ -39,7 +39,9 @@ export async function resolveAssetPath(
   const rootReal = await realpath(artifactRoot);
   const rel = relative(rootReal, real);
   if (rel.startsWith('..') || isAbsolute(rel)) return { kind: 'forbidden' };
-  if (basename(real).startsWith('.')) return { kind: 'forbidden' };
+  // Every segment, not only the basename: `.git/config` has the basename
+  // `config`, and the file it names is exactly the leak T-01-13 lists.
+  if (rel.split(sep).some((segment) => segment.startsWith('.'))) return { kind: 'forbidden' };
   return { kind: 'ok', path: real };
 }
 

@@ -86,6 +86,13 @@ before(async () => {
   // Dotfile inside root — denied unconditionally regardless of containment.
   await writeFile(join(root, '.env'), 'SECRET=should-never-be-served', 'utf8');
 
+  await mkdir(join(root, '.git'), { recursive: true });
+  await writeFile(join(root, '.git', 'config'), '[core]\n\trepositoryformatversion = 0\n', 'utf8');
+  await mkdir(join(root, '.hidden', 'sub'), { recursive: true });
+  await writeFile(join(root, '.hidden', 'sub', 'file.txt'), 'hidden\n', 'utf8');
+  await mkdir(join(root, 'v1.2'), { recursive: true });
+  await writeFile(join(root, 'v1.2', 'file.txt'), 'dotted dir name\n', 'utf8');
+
   // 100-byte fixture for the Range test rows.
   await writeFile(join(root, 'range-fixture.bin'), RANGE_FIXTURE_BYTES);
 
@@ -169,6 +176,21 @@ test('resolveAssetPath: a path escaping root via ../ resolves to { kind: "forbid
 test('resolveAssetPath: a dotfile directly inside root is forbidden regardless of containment', async () => {
   const result = await resolveAssetPath(root, '/.env');
   assert.deepStrictEqual(result, { kind: 'forbidden' });
+});
+
+test('resolveAssetPath: a file nested inside a dot-directory (.git/config) is forbidden, not served', async () => {
+  const result = await resolveAssetPath(root, '/.git/config');
+  assert.deepStrictEqual(result, { kind: 'forbidden' });
+});
+
+test('resolveAssetPath: a file two levels under a dot-directory is forbidden', async () => {
+  const result = await resolveAssetPath(root, '/.hidden/sub/file.txt');
+  assert.deepStrictEqual(result, { kind: 'forbidden' });
+});
+
+test('resolveAssetPath: a directory whose name merely contains a dot (v1.2/file.txt) is still served', async () => {
+  const result = await resolveAssetPath(root, '/v1.2/file.txt');
+  assert.strictEqual(result.kind, 'ok');
 });
 
 test('resolveAssetPath: a symlink inside root pointing outside it is forbidden', async (t) => {
