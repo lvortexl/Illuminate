@@ -186,7 +186,7 @@ export async function runStalenessScan(
         resolvedRev: null,
         resolvedRange: null,
         eligibleForStaleness: false,
-        reason: `resolver threw: ${(err as Error).message}`,
+        reason: `resolver threw: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
     classifications.push({ input, result });

@@ -343,3 +343,29 @@ test('runStalenessScan: one anchor whose resolver throws is recorded as cannot-d
   assert.strictEqual(result.eligibleCount, 1, 'the healthy anchor still resolved');
   assert.strictEqual(result.skippedCount, 1, 'the throwing anchor is skipped, not fatal');
 });
+
+test('runStalenessScan: a resolver that rejects with a non-Error value (null) is still contained, and the reason names it', async (t) => {
+  // Same fixture, artifact and store setup as the previous test -- only the
+  // injected resolver's rejection value and the assertions differ.
+  const repo = usingFixture(t);
+  const region = ['alpha 1', 'alpha 2'];
+  const rev = repo.commitFile('src/a.ts', `${region.join('\n')}\n`, 'add a');
+  const artifactPath = join(repo.root, 'artifact.html');
+  writeFileSync(
+    artifactPath,
+    `<!doctype html><html><body>
+<p data-src="src/a.ts#L1-L2" data-rev="${rev}" data-anchor-hash="${anchorHash(region.join('\n'))}">a</p>
+<p data-src="src/b.ts#L1-L2" data-rev="${rev}" data-anchor-hash="${anchorHash('never resolved')}">b</p>
+</body></html>`,
+    'utf8',
+  );
+  const findingsStoreFile = new FindingsStoreFile(artifactPath);
+
+  const result = await runStalenessScan(artifactPath, repo.root, findingsStoreFile, {
+    resolveAnchor: (repoRoot, input, pool) =>
+      input?.path === 'src/b.ts' ? Promise.reject(null) : resolve(repoRoot, input, pool),
+  });
+  assert.strictEqual(result.scannedAnchorCount, 2);
+  assert.strictEqual(result.eligibleCount, 1);
+  assert.strictEqual(result.skippedCount, 1);
+});
