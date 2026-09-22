@@ -206,6 +206,19 @@ test('POST /api/sessions with a file resolving outside root returns 403', async 
   );
 });
 
+test('POST /api/sessions with a file under a dot-prefixed directory returns 403 (ADR-105 binds every caller of resolveAssetPath)', async () => {
+  await withServer(
+    async (root) => {
+      await mkdir(join(root, '.hidden'), { recursive: true });
+      await writeFile(join(root, '.hidden', 'artifact.html'), '<html><body>hi</body></html>', 'utf8');
+    },
+    async ({ port, root }) => {
+      const res = await postJson(port, '/api/sessions', { file: join(root, '.hidden', 'artifact.html') });
+      assert.strictEqual(res.status, 403);
+    },
+  );
+});
+
 test('POST /api/sessions with a file that does not exist returns 404', async () => {
   await withServer(
     async () => undefined,
