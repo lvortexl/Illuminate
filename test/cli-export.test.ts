@@ -249,3 +249,49 @@ test('illuminate export: running the command starts no daemon and creates no loc
     assert.strictEqual(record, null, 'illuminate export must never spawn/attach a daemon or write a lockfile');
   });
 });
+
+const REMOTE_SCRIPT_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Remote</title></head>
+<body><h1>Remote</h1><script src="https://cdn.example.com/lib.js"></script></body></html>
+`;
+
+const MODULE_SCRIPT_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Module</title></head>
+<body><h1>Module</h1><script type="module" src="./app.js"></script></body></html>
+`;
+
+test('illuminate export exits 1, names the surviving remote reference on stderr, and still writes the file', async () => {
+  await withTempDir(async (dir) => {
+    const file = join(dir, 'remote.html');
+    await writeFile(file, REMOTE_SCRIPT_HTML, 'utf8');
+    const { status, stdout, stderr } = runExport([file]);
+    assert.strictEqual(status, 1, `stdout: ${stdout}\nstderr: ${stderr}`);
+    assert.match(stderr, /not self-contained/);
+    assert.match(stderr, /remote-reference: https:\/\/cdn\.example\.com\/lib\.js/);
+    assert.match(stderr, /--allow-remote/);
+    const exported = await readFile(join(dir, 'remote.export.html'), 'utf8');
+    assert.ok(exported.includes('https://cdn.example.com/lib.js'), 'the file is written even though the command fails');
+  });
+});
+
+test('illuminate export --allow-remote exits 0 with the same file and the existing warning summary', async () => {
+  await withTempDir(async (dir) => {
+    const file = join(dir, 'remote.html');
+    await writeFile(file, REMOTE_SCRIPT_HTML, 'utf8');
+    const { status, stdout, stderr } = runExport([file, '--allow-remote']);
+    assert.strictEqual(status, 0, `stderr: ${stderr}`);
+    assert.match(stdout, /remote-reference: 1/);
+    assert.doesNotMatch(stderr, /not self-contained/);
+  });
+});
+
+test('illuminate export exits 1 when an external module script survives, since the file breaks once moved', async () => {
+  await withTempDir(async (dir) => {
+    const file = join(dir, 'module.html');
+    await writeFile(file, MODULE_SCRIPT_HTML, 'utf8');
+    await writeFile(join(dir, 'app.js'), 'console.log("hi");\n', 'utf8');
+    const { status, stderr } = runExport([file]);
+    assert.strictEqual(status, 1, `stderr: ${stderr}`);
+    assert.match(stderr, /module-external: \.\/app\.js/);
+  });
+});

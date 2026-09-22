@@ -80,7 +80,7 @@ authoring.
 | `illuminate poll <file.html> [--follow]` | Wait for a dispatch; --follow stays attached, streaming. |
 | `illuminate answer --dispatch <id> --port <port>` | Submit an answer via stdin; needs no session key. |
 | `illuminate audit <file.html>` | Show per-dispatch cost, tier deviations, and refusals. |
-| `illuminate export <file.html> [--out <path>]` | Write a standalone copy with local assets inlined. |
+| `illuminate export <file.html> [--out <path>] [--allow-remote]` | Inline assets; fails if remote. |
 | `illuminate --version` | Print the installed version. |
 | `illuminate --help` | Show this summary. |
 | `illuminate design` | Why illuminate is built this way. |

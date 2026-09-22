@@ -48,11 +48,14 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 /** Runs the real, built CLI's `export` subcommand against `file` -- the
  * actual command a human types -- adapting no-cdn.test.ts's own
  * `openViaBuiltCli` pattern to export's own arg shape (`export <file>`,
- * not `<file> --no-open`). Returns the command's own stdout (carrying the
+ * not `<file> --no-open`). `extraArgs` lets callers pass `--allow-remote`
+ * (ADR-110: export now exits 1 when a remote-reference or module-external
+ * warning survives, so any fixture that carries one needs the flag to
+ * reach exit 0 here). Returns the command's own stdout (carrying the
  * printed warning-count summary) and the resulting `<stem>.export.html`
  * path, per exportCommand's own sibling-file naming convention. */
-function exportViaBuiltCli(file: string): { stdout: string; exportedPath: string } {
-  const result = spawnSync(process.execPath, [CLI_PATH, 'export', file], { encoding: 'utf8' });
+function exportViaBuiltCli(file: string, extraArgs: readonly string[] = []): { stdout: string; exportedPath: string } {
+  const result = spawnSync(process.execPath, [CLI_PATH, 'export', file, ...extraArgs], { encoding: 'utf8' });
   if (result.status !== 0) {
     throw new Error(`illuminate export ${file} failed (status ${String(result.status)}): ${result.stderr}`);
   }
@@ -71,13 +74,13 @@ function listHtmlFixtures(dir: string): string[] {
 // silent.
 // ---------------------------------------------------------------------------
 
-test('export: a surviving remote reference is left as a working link AND flagged under remote-reference in the command\'s own printed output', async () => {
+test('export: a surviving remote reference is left as a working link AND flagged under remote-reference in the command\'s own printed output, and the command fails without --allow-remote (ADR-110)', async () => {
   requireBuiltCli();
   await withTempDir(async (dir) => {
     await cp(EXPORT_FIXTURES_DIR, dir, { recursive: true });
     const file = join(dir, 'remote-reference.html');
 
-    const { stdout, exportedPath } = exportViaBuiltCli(file);
+    const { stdout, exportedPath } = exportViaBuiltCli(file, ['--allow-remote']);
     const exported = await readFile(exportedPath, 'utf8');
 
     assert.ok(
@@ -88,6 +91,13 @@ test('export: a surviving remote reference is left as a working link AND flagged
       stdout,
       /remote-reference: \d+/,
       `expected the command's own printed output to explicitly flag it under a remote-reference warning count: ${stdout}`,
+    );
+
+    const withoutFlag = spawnSync(process.execPath, [CLI_PATH, 'export', file], { encoding: 'utf8' });
+    assert.strictEqual(
+      withoutFlag.status,
+      1,
+      `expected export to fail without --allow-remote once a remote-reference warning survives: ${withoutFlag.stderr}`,
     );
   });
 });
@@ -127,7 +137,7 @@ test('export: no fixture in test/fixtures/artifacts or test/fixtures/export ever
 
       for (const name of listHtmlFixtures(dir)) {
         const file = join(dir, name);
-        const { stdout, exportedPath } = exportViaBuiltCli(file);
+        const { stdout, exportedPath } = exportViaBuiltCli(file, name === 'remote-reference.html' ? ['--allow-remote'] : []);
         const exported = await readFile(exportedPath, 'utf8');
         const hits = findCdnMatches(exported);
         if (hits.length === 0) continue;

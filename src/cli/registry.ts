@@ -54,8 +54,8 @@ export const COMMANDS: readonly CommandEntry[] = [
   },
   {
     name: 'export',
-    usage: 'illuminate export <file.html> [--out <path>]',
-    summary: 'Write a standalone copy with local assets inlined.',
+    usage: 'illuminate export <file.html> [--out <path>] [--allow-remote]',
+    summary: 'Inline assets; fails if remote.',
   },
   { name: '--version', usage: 'illuminate --version', summary: 'Print the installed version.' },
   { name: '--help', usage: 'illuminate --help', summary: 'Show this summary.' },

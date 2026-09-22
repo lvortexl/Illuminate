@@ -641,6 +641,23 @@ async function exportCommand(args: readonly string[]): Promise<number> {
       authorCsp: detectAuthorCsp(transformed),
     }),
   );
+
+  // ADR-110: "no outbound requests, ever" is a headline property. A file
+  // that still reaches for the network, or for a sibling module that will
+  // not travel with it, is not self-contained, and saying so with exit 0 is
+  // the silence pattern this codebase exists to prevent. The file is still
+  // written: the author loses nothing but the false claim.
+  const notSelfContained = warnings.filter((w) => w.kind === 'remote-reference' || w.kind === 'module-external');
+  if (notSelfContained.length > 0 && !hasFlag(args, 'allow-remote')) {
+    process.stderr.write(
+      `illuminate export: wrote ${outputPath}, but it is not self-contained -- ${String(notSelfContained.length)} reference(s) still leave the file when it is opened:\n`,
+    );
+    for (const warning of notSelfContained) {
+      process.stderr.write(`  ${warning.kind}: ${warning.ref}\n`);
+    }
+    process.stderr.write('illuminate export: pass --allow-remote to accept this and exit 0\n');
+    return 1;
+  }
   return 0;
 }
 
