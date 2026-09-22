@@ -21,7 +21,7 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.browser.json",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
-    "test": "node --test --test-concurrency=1",
+    "test": "node --test --test-concurrency=1 --test-timeout=60000",
     "test:browser": "playwright test",
     "lint": "eslint .",
     "generate:skill": "node scripts/generate-skill.mjs",

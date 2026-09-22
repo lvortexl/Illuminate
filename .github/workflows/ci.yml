@@ -8,6 +8,12 @@ jobs:
         os: [windows-latest, ubuntu-latest]
         node: ['22.18.0', '24']
     runs-on: ${{ matrix.os }}
+    # An outer bound nothing inside the suite can defeat. A hung test file
+    # once held a Windows job for 5h58m before the 6h default cancelled it,
+    # and a cancelled job reports nothing about the code it was meant to
+    # test. Twenty minutes is comfortably above a full run on the slowest
+    # leg and turns any future hang into a fast, readable failure.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: git config --global core.autocrlf input

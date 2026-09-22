@@ -13,6 +13,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import type { ChildProcess, ChildProcessByStdio } from 'node:child_process';
+import type { Readable } from 'node:stream';
 import { mkdtemp, writeFile, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,11 +28,50 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+/**
+ * Every long-lived CLI child this suite spawns, so that one can never
+ * outlive the test that started it.
+ *
+ * `poll` and `poll --follow` are processes whose whole job is to not exit,
+ * and each test spawns one with piped stdio and kills it on the happy path.
+ * An assertion that failed EARLIER than that kill -- "daemon never came up",
+ * say -- skipped it, and the live child's pipes then held the test file's
+ * process open forever. That is not hypothetical: it stalled a Windows CI
+ * job for five hours and fifty-eight minutes, and because the job was
+ * cancelled rather than finished, every test file after this one was
+ * reported as failed-by-cancellation and the run said nothing about the
+ * code. Registering here means the cleanup runs however the test ends.
+ */
+const liveChildren: ChildProcess[] = [];
+
+/** stdio is fixed at ['ignore','pipe','pipe'], so both pipes are non-null
+ * and every call site can read them without a null check. */
+type CliChild = ChildProcessByStdio<null, Readable, Readable>;
+
+function spawnCli(args: readonly string[]): CliChild {
+  const child = spawn(process.execPath, ['dist/cli.mjs', ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+  liveChildren.push(child);
+  return child;
+}
+
+function reapLiveChildren(): void {
+  for (const child of liveChildren.splice(0)) {
+    if (child.exitCode !== null || child.signalCode !== null) continue;
+    try {
+      child.kill();
+    } catch {
+      // Already gone between the check and the signal -- that is the
+      // outcome this is asking for anyway.
+    }
+  }
+}
+
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), 'illuminate-cli-poll-test-'));
   try {
     return await fn(dir);
   } finally {
+    reapLiveChildren();
     await forceRemove(dir);
   }
 }
@@ -136,7 +177,7 @@ test('illuminate poll <file.html> sees a real dispatch enqueued while it is alre
       // throughout, sidestepping this host's documented inability to keep a
       // detached daemon alive once its own spawning CLI process has already
       // exited (see cli-open.test.ts's own skip precedent).
-      const child = spawn(process.execPath, ['dist/cli.mjs', 'poll', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawnCli(['poll', file]);
       let stdoutBuf = '';
       let stderrBuf = '';
       child.stdout.on('data', (chunk: Buffer) => {
@@ -206,9 +247,7 @@ test('Ctrl-C (SIGINT) during a hung poll exits 130 where the host genuinely deli
     const file = join(dir, 'artifact.html');
     await writeFile(file, '<!doctype html><html><body><p>hi</p></body></html>');
     try {
-      const child = spawn(process.execPath, ['dist/cli.mjs', 'poll', file], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const child = spawnCli(['poll', file]);
       let stderrBuf = '';
       child.stderr.on('data', (chunk: Buffer) => {
         stderrBuf += chunk.toString();
@@ -272,7 +311,7 @@ test('illuminate poll <file.html> delivers the human note to the agent, through 
     await writeFile(file, '<!doctype html><html><body><p>hi</p></body></html>');
     const note = 'Name the exact test that proves this, not a summary of one.';
     try {
-      const child = spawn(process.execPath, ['dist/cli.mjs', 'poll', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawnCli(['poll', file]);
       let stdoutBuf = '';
       let stderrBuf = '';
       child.stdout.on('data', (chunk: Buffer) => (stdoutBuf += chunk.toString()));
@@ -315,9 +354,7 @@ test('illuminate poll --follow stays attached past the first dispatch and stream
     const file = join(dir, 'artifact.html');
     await writeFile(file, '<!doctype html><html><body><p>hi</p></body></html>');
     try {
-      const child = spawn(process.execPath, ['dist/cli.mjs', 'poll', file, '--follow'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const child = spawnCli(['poll', file, '--follow']);
       let stdoutBuf = '';
       child.stdout.on('data', (chunk: Buffer) => {
         stdoutBuf += chunk.toString();
@@ -389,9 +426,7 @@ test('illuminate poll --follow exits 0 with a one-line message once the session 
     const file = join(dir, 'artifact.html');
     await writeFile(file, '<!doctype html><html><body><p>hi</p></body></html>');
     try {
-      const child = spawn(process.execPath, ['dist/cli.mjs', 'poll', file, '--follow'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const child = spawnCli(['poll', file, '--follow']);
       let stderrBuf = '';
       child.stderr.on('data', (chunk: Buffer) => {
         stderrBuf += chunk.toString();
