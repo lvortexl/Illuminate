@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFixtureRepo } from '../../test/fixtures/git-repo.ts';
@@ -554,4 +554,24 @@ test('STAL-03: a file deleted and then RESTORED with identical content resolves 
   );
   assert.strictEqual(back.status, 'unchanged', 'restoring identical content must clear the lost state');
   assert.strictEqual(back.content, region.join('\n'));
+});
+
+test('a cited file tracked at HEAD but deleted WITHOUT committing resolves to cannot-determine and never throws', async (t) => {
+  const { repo, pool } = useRepoAndPool(t);
+  const region = ['gadget one', 'gadget two', 'gadget three'];
+  const rev = repo.commitFile('gadget.ts', block(region), 'add gadget.ts');
+
+  // Delete from the working tree only -- no `git rm`, no commit.
+  rmSync(join(repo.root, 'gadget.ts'));
+
+  const result = await resolve(
+    repo.root,
+    { path: 'gadget.ts', range: 'L1-L3', rev, anchorHash: anchorHash(region.join('\n')) },
+    pool,
+  );
+
+  assert.strictEqual(result.status, 'cannot-determine', `expected cannot-determine, got ${result.status}`);
+  assert.strictEqual(result.eligibleForStaleness, false);
+  assert.strictEqual(result.content, null);
+  assert.match(result.reason ?? '', /missing from the working tree/);
 });

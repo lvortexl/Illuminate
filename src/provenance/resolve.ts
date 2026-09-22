@@ -392,7 +392,16 @@ async function resolveGitPresent(
         return cannotDetermine('unable to determine whether the working tree has uncommitted changes at the anchored path');
       }
     } else {
-      dirty = isWorkingTreeDirtyAt(repoRoot, anchor.path, blobAtHead.sha);
+      try {
+        dirty = isWorkingTreeDirtyAt(repoRoot, anchor.path, blobAtHead.sha);
+      } catch {
+        // `git hash-object` exits 128 when the working-tree file is gone: the
+        // file was deleted without committing. That is reversible (a rename
+        // in progress, a stash), so it is neither `lost` nor clean. The
+        // batched sibling above already maps a missing path to
+        // cannot-determine; this is the same answer on the unbatched path.
+        return cannotDetermine('anchored file is missing from the working tree (deleted without committing)');
+      }
     }
     if (dirty) {
       return cannotDetermine('working tree has uncommitted changes at the anchored path');

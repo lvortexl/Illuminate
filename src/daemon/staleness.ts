@@ -112,6 +112,8 @@ export interface StalenessScanDeps {
   readonly readFile?: ReadArtifactFile;
   readonly now?: () => string;
   readonly getRepoContext?: (artifactDir: string, deps?: PoolRegistryDeps) => ReturnType<typeof getRepoContext>;
+  /** Test seam: the per-anchor resolver. Production callers never set it. */
+  readonly resolveAnchor?: typeof resolve;
 }
 
 /** Reads the repository's current HEAD commit sha through the SAME shared
@@ -143,9 +145,12 @@ async function readHeadRevision(pool: GitBatchPool): Promise<string | null> {
  * observations (planScanObservations, above), and apply them to
  * `findingsStoreFile` in ONE batched mutate() call for the whole pass --
  * never one write per anchor. Never throws on a per-anchor resolve()
- * failure (resolve() itself never throws, per ANCH-07); a readFile
- * failure (the artifact itself vanished mid-scan) propagates, since there
- * is nothing to scan and the caller (Plan 08-03's watcher/reconcile) is
+ * failure -- resolve() is documented never to throw (ANCH-07), but this
+ * loop no longer merely takes that on faith: each anchor is wrapped in its
+ * own try/catch boundary (PV-02), so the no-throw guarantee is the loop's
+ * own now, not an assumption borrowed from resolve(); a readFile failure
+ * (the artifact itself vanished mid-scan) propagates, since there is
+ * nothing to scan and the caller (Plan 08-03's watcher/reconcile) is
  * already designed to treat a rejected scan as "try again next tick",
  * never as a crash.
  */
@@ -163,12 +168,27 @@ export async function runStalenessScan(
   const inputs = extractAnchorInputs(html);
   const { repoRoot, pool } = resolveContext(artifactDir);
 
+  const resolveAnchor = deps.resolveAnchor ?? resolve;
   // Awaited sequentially, never Promise.all fan-out -- this plan's own
   // anchor counts are small per-artifact, matching ANCH-03's already-
-  // established interactive scale (T-08-05).
+  // established interactive scale (T-08-05). Each anchor gets its own
+  // boundary: resolve() is documented never to throw, but one anchor that
+  // does must not mute every other anchor in the artifact (PV-02).
   const classifications: AnchorClassification[] = [];
   for (const input of inputs) {
-    const result = await resolve(repoRoot, input, pool);
+    let result: ResolveResult;
+    try {
+      result = await resolveAnchor(repoRoot, input, pool);
+    } catch (err) {
+      result = {
+        status: 'cannot-determine',
+        content: null,
+        resolvedRev: null,
+        resolvedRange: null,
+        eligibleForStaleness: false,
+        reason: `resolver threw: ${(err as Error).message}`,
+      };
+    }
     classifications.push({ input, result });
   }
 

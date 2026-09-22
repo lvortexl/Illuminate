@@ -8,6 +8,7 @@ import type { ResolveResult, DriftState } from '../../src/provenance/types.ts';
 import type { ScanObservation } from '../../src/store/findings-store.ts';
 import type { AnchorClassification } from '../../src/daemon/staleness.ts';
 import { planScanObservations, runStalenessScan } from '../../src/daemon/staleness.ts';
+import { resolve } from '../../src/provenance/resolve.ts';
 import { createFixtureRepo } from '../fixtures/git-repo.ts';
 import type { FixtureRepo } from '../fixtures/git-repo.ts';
 import { getRepoContext } from '../../src/router/pool-registry.ts';
@@ -310,4 +311,35 @@ test('runStalenessScan: a dirty working tree at the cited file produces detected
 
   const store = await new FindingsStoreFile(artifactPath).read();
   assert.deepStrictEqual(store.findings, []);
+});
+
+test('runStalenessScan: one anchor whose resolver throws is recorded as cannot-determine and the other anchors still scan', async (t) => {
+  // usingFixture (not a bare createFixtureRepo + forceRemove) -- this test
+  // drives one real resolve() call (src/a.ts), which spawns this fixture's
+  // GitBatchPool subprocess via getRepoContext; closing it before teardown
+  // is required (see GitBatchPool.close()'s own doc comment), or `rmdir`
+  // fights a still-running `git cat-file` process for the whole fixture
+  // directory, same as every other runStalenessScan test in this file.
+  const repo = usingFixture(t);
+  const region = ['alpha 1', 'alpha 2'];
+  const rev = repo.commitFile('src/a.ts', `${region.join('\n')}\n`, 'add a');
+  const artifactPath = join(repo.root, 'artifact.html');
+  writeFileSync(
+    artifactPath,
+    `<!doctype html><html><body>
+<p data-src="src/a.ts#L1-L2" data-rev="${rev}" data-anchor-hash="${anchorHash(region.join('\n'))}">a</p>
+<p data-src="src/b.ts#L1-L2" data-rev="${rev}" data-anchor-hash="${anchorHash('never resolved')}">b</p>
+</body></html>`,
+    'utf8',
+  );
+  const findingsStoreFile = new FindingsStoreFile(artifactPath);
+
+  const result = await runStalenessScan(artifactPath, repo.root, findingsStoreFile, {
+    resolveAnchor: (repoRoot, input, pool) =>
+      input?.path === 'src/b.ts' ? Promise.reject(new Error('git exploded')) : resolve(repoRoot, input, pool),
+  });
+
+  assert.strictEqual(result.scannedAnchorCount, 2, 'both anchors are counted');
+  assert.strictEqual(result.eligibleCount, 1, 'the healthy anchor still resolved');
+  assert.strictEqual(result.skippedCount, 1, 'the throwing anchor is skipped, not fatal');
 });
