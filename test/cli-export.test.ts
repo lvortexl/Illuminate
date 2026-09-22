@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -293,5 +294,22 @@ test('illuminate export exits 1 when an external module script survives, since t
     const { status, stderr } = runExport([file]);
     assert.strictEqual(status, 1, `stderr: ${stderr}`);
     assert.match(stderr, /module-external: \.\/app\.js/);
+  });
+});
+
+test('illuminate export --out followed by a flag is a missing path, not a bypass: exits 1 and writes nothing', async () => {
+  const stray = join(process.cwd(), '--allow-remote');
+  await withTempDir(async (dir) => {
+    const file = join(dir, 'remote.html');
+    await writeFile(file, REMOTE_SCRIPT_HTML, 'utf8');
+    try {
+      const { status, stderr } = runExport([file, '--out', '--allow-remote']);
+      assert.strictEqual(status, 1, `stderr: ${stderr}`);
+      assert.match(stderr, /--out needs a path/);
+      assert.strictEqual(existsSync(stray), false, 'no file may be written under the flag name');
+      assert.strictEqual(existsSync(join(dir, 'remote.export.html')), false, 'no sibling export may be written either');
+    } finally {
+      await forceRemove(stray);
+    }
   });
 });

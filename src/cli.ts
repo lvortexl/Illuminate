@@ -624,7 +624,15 @@ async function exportCommand(args: readonly string[]): Promise<number> {
     final = transformed.slice(0, offset) + appendix + transformed.slice(offset);
   }
 
-  const outputPath = extractFlag(args, 'out') ?? join(root, exportFileName(realFile));
+  const outFlag = extractFlag(args, 'out');
+  if (outFlag !== undefined && outFlag.startsWith('--')) {
+    // `--out` followed by another flag is a missing value, never a path:
+    // writing a file literally named `--allow-remote` while also honouring
+    // that token as the opt-out would defeat the gate below silently.
+    process.stderr.write(`illuminate export: --out needs a path, got ${outFlag}\n`);
+    return 1;
+  }
+  const outputPath = outFlag ?? join(root, exportFileName(realFile));
   // `--out` may name a not-yet-existing directory (e.g. `--out dist/x.html`);
   // the sibling-file convention's own directory (`root`) always already
   // exists, so this is a no-op there, but a real correctness gap for `--out`
