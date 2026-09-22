@@ -570,7 +570,19 @@ window.addEventListener('message', (event: MessageEvent) => {
       body: JSON.stringify(payload),
     })
       .then((res) => {
-        if (res.status !== 200) return undefined;
+        if (res.status !== 200) {
+          // A rejected request must not look like a slow one (UI-01).
+          // illuminate speaks for itself here; this is never an agent message.
+          return res
+            .json()
+            .catch(() => ({}))
+            .then((body: unknown) => {
+              const error = (body as { error?: unknown }).error;
+              const detail = typeof error === 'string' && error.length > 0 ? error : res.statusText || 'no detail';
+              rail.showNotice(`illuminate could not queue that request (HTTP ${String(res.status)}): ${detail}`);
+              return undefined;
+            });
+        }
         // Echoes the newly-created dispatch id back into the artifact
         // right after this dispatch POST resolves (07-04) -- the SDK/card
         // renderer can use this to show an immediate "pending" state for
@@ -607,12 +619,11 @@ window.addEventListener('message', (event: MessageEvent) => {
         // The "future phase's real chrome UI" this comment used to defer to
         // is the rail, and it exists now -- a dropped dispatch is no longer
         // silent. Still never rethrown: an unhandled rejection would be a
-        // worse failure than a visible message.
+        // worse failure than a visible message. ADR-111: the same
+        // illuminate-voiced notice a rejected (non-200) request gets above,
+        // not an agent-voiced conversation message.
         noteTransport(false);
-        rail.addMessage(
-          'system',
-          'That request never reached the daemon. Check the connection lamp, then try again.',
-        );
+        rail.showNotice('illuminate could not reach the daemon to queue that request');
       });
     return;
   }

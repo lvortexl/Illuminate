@@ -470,3 +470,59 @@ test('a queued note carries its attachments through to the batch send', async ({
   const body = (await (await post).request().postDataJSON()) as { attachments: { id: string }[] };
   expect(body.attachments).toHaveLength(1);
 });
+
+// --- 8. A rejected dispatch is reported, not swallowed (ADR-111) -----
+//
+// client.ts's `extractTypedIntent` branch -- the one this test targets -- is
+// reached only by a rendered card's OWN follow-up actions ("Go deeper",
+// "Check my understanding"), relayed back from the artifact as an ordinary
+// illuminate:queuePrompt (see client.ts's onCardAction). The element
+// composer's own Queue/Send goes through a different function
+// (sendQueuedNotes) that already throws and reports on a bad status, so it
+// would not exercise the branch this fix changes. Grading the human's own
+// explanation is the one card action whose intent is literally 'explain'
+// (follow-up.ts's buildFollowUpPayload), so it doubles as "trigger an
+// Explain" and as a real proof of this fix.
+test('a dispatch the daemon rejects is reported in the rail, in illuminate\'s voice, and can be dismissed', async ({ page }) => {
+  await openShell(page);
+
+  // The artifact iframe's OWN copy of a syncAnnotations relay can be
+  // dropped: client.ts fires its "early sync" the instant it sets the
+  // iframe's src, which can race the iframe's own navigation (client.ts's
+  // own comment: "harmless if the SDK has not finished booting yet and
+  // drops this message; the heartbeat-cadence sync below covers that case
+  // on its own next tick regardless"). "Grade my understanding" is run on
+  // the ARTIFACT side (cardsController.runAction), so it needs a sync that
+  // actually landed there -- two observed round trips guarantee at least
+  // one full heartbeat interval has passed since the iframe was ready.
+  await page.waitForResponse((res) => res.url().includes('/annotations') && res.request().method() === 'GET');
+  await page.waitForResponse((res) => res.url().includes('/annotations') && res.request().method() === 'GET');
+
+  // #first already has an answered card (the depth-ladder test above sent
+  // it) -- the daemon dedupes on element+intent+content, so this reuses
+  // that same dispatch rather than creating a new one.
+  await sendNote(page, '#first', 'Explain this.');
+  const card = page.locator('.il-card').filter({ hasText: 'The first explanation.' });
+  await expect(card).toHaveCount(1, { timeout: 15000 });
+
+  await page.route('**/api/*/dispatches', (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    return route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'synthetic failure' }),
+    });
+  });
+
+  await card.getByRole('button', { name: 'Check my understanding' }).click();
+  await card.locator('.il-self-explain textarea').fill('A synthetic rejection, to prove the rail speaks up.');
+  await card.getByRole('button', { name: 'Grade my understanding' }).click();
+
+  const notice = page.locator('.il-rail-notice');
+  await expect(notice).toHaveCount(1);
+  await expect(notice).toContainText('illuminate could not queue that request (HTTP 500): synthetic failure');
+  await expect(page.locator('.il-msg[data-from="agent"]')).toHaveCount(0);
+  await notice.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(notice).toHaveCount(0);
+  await page.unroute('**/api/*/dispatches');
+});

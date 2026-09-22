@@ -709,6 +709,12 @@ body {
 }
 .il-notice-title { color: var(--il-ink); font-size: 15px; }
 
+/* ---- Rail notice (rejected dispatch / transport failure, ADR-111) -- */
+.il-rail-notices { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 0; }
+.il-rail-notices:empty { display: none; }
+.il-rail-notice { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--il-hairline); border-left: 3px solid var(--il-accent); background: var(--il-surface-raised); color: var(--il-ink); font-size: 13px; line-height: 1.4; }
+.il-rail-notice-text { flex: 1; }
+
 /* ---- Narrow windows ------------------------------------------------ */
 /* Below this the rail would starve the artifact, so it becomes an overlay
    the human opens deliberately rather than a permanent column. */

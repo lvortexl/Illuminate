@@ -106,6 +106,9 @@ export interface Rail {
   addPending(dispatchId: string, uid: string, label: string, intent: Intent): void;
   addMessage(from: 'agent' | 'you' | 'system', text: string): void;
   focusCard(uid: string): void;
+  /** A one-line statement from illuminate itself (never the agent): a
+   * request the daemon rejected, a transport failure. Dismissible. */
+  showNotice(text: string): void;
 }
 
 type TabId = 'review' | 'findings' | 'conversation';
@@ -212,6 +215,12 @@ export function createRail(options: RailOptions): Rail {
   makeTab('findings', 'Findings');
   makeTab('conversation', 'Agent');
 
+  // Sits directly before the panels container (`body`, below) so a
+  // dismissible notice from illuminate itself survives `renderReview()`'s
+  // `panel.replaceChildren()` -- that rebuild only ever touches `body`'s
+  // own descendants, never a root-level sibling.
+  const notices = el('div', 'il-rail-notices');
+
   const body = el('div', 'il-rail-body');
   for (const panel of panels.values()) body.appendChild(panel);
 
@@ -239,7 +248,7 @@ export function createRail(options: RailOptions): Rail {
 
   const hint = el('div', 'il-compose-hint', 'Click any element in the artifact to write a note about it.');
   compose.append(row, hint);
-  root.append(tabs, body, compose);
+  root.append(tabs, notices, body, compose);
 
   // ---- State -------------------------------------------------------
   const queue: QueuedNote[] = [];
@@ -631,6 +640,18 @@ ${note.note}`);
       setTimeout(() => {
         delete node.dataset.focus;
       }, 1600);
+    },
+    showNotice(text: string): void {
+      const notice = el('div', 'il-rail-notice');
+      notice.setAttribute('role', 'status');
+      notice.appendChild(el('span', 'il-rail-notice-text', text));
+      const dismiss = el('button', 'il-btn il-btn--sm', 'Dismiss');
+      dismiss.type = 'button';
+      dismiss.addEventListener('click', () => {
+        notice.remove();
+      });
+      notice.appendChild(dismiss);
+      notices.appendChild(notice);
     },
   };
 }
