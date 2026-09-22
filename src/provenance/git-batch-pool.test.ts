@@ -8,6 +8,7 @@ import type { FixtureRepo } from '../../test/fixtures/git-repo.ts';
 import { GitBatchPool, GitBatchContext, detectBatchMode } from './git-batch-pool.ts';
 import type { GitBatchPoolOptions } from './git-batch-pool.ts';
 import { forceRemove, forceRemoveSync } from '../../test/fixtures/cleanup.ts';
+import { isPidAlive } from '../daemon/lock.ts';
 /**
  * Every test builds its own fixture repo AND its own pool. Teardown order
  * matters on Windows: the pool MUST be closed (killing its subprocess)
@@ -48,12 +49,24 @@ function independentBlobSha(repo: FixtureRepo, revPath: string): string {
   return repo.git(['rev-parse', revPath]);
 }
 
-// Independent, OS-level check (via `tasklist`, not the pool's own bookkeeping)
-// that a given pid is no longer a running process. Windows-only, matching
-// this plan's Windows-first constraint.
+// Independent, OS-level check that a given pid is no longer a running
+// process. "Independent" means independent of the POOL -- the whole point of
+// these two tests is that the pool's own bookkeeping might be lying about
+// having killed something, so the claim has to be checked against the OS.
+//
+// `tasklist` was the only implementation for a while, and it is a
+// Windows-only binary, so both callers failed with ENOENT on the Linux CI
+// leg. On POSIX the OS-level equivalent is signal 0, with one wrinkle
+// `isPidAlive` already handles and a hand-rolled check would get wrong: a
+// child that has exited but not yet been reaped is a zombie, signal 0
+// succeeds on it, and for "is this process gone" a zombie is gone.
 function independentlyConfirmDead(pid: number): void {
-  const out = execFileSync('tasklist', ['/FI', `PID eq ${pid}`]).toString();
-  assert.ok(!out.includes(String(pid)), `expected pid ${pid} to be dead, but tasklist still reports it`);
+  if (process.platform === 'win32') {
+    const out = execFileSync('tasklist', ['/FI', `PID eq ${pid}`]).toString();
+    assert.ok(!out.includes(String(pid)), `expected pid ${pid} to be dead, but tasklist still reports it`);
+    return;
+  }
+  assert.ok(!isPidAlive(pid), `expected pid ${pid} to be dead, but it is still a live process`);
 }
 
 test('contents() on an existing blob is byte-identical to an independent `git show`', async (t) => {
@@ -460,7 +473,7 @@ test('[forced batch mode] contents()/info() on a submodule path resolve found:tr
   });
 });
 
-test("close() — which now shares #onFatal's single kill path — leaves no live OS process behind, independently verified via tasklist", async (t) => {
+test("close() — which now shares #onFatal's single kill path — leaves no live OS process behind, independently verified against the OS", async (t) => {
   const { repo, pool } = useRepoAndPool(t, false);
   const sha = repo.commitFile('a.txt', 'hello\n', 'init');
   await pool.contents(`${sha}:a.txt`);

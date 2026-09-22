@@ -25,10 +25,22 @@ test('confineToRepoRoot: a POSIX absolute path returns null', () => {
   assert.strictEqual(result, null);
 });
 
-test('confineToRepoRoot: a Windows drive-lettered absolute path returns null', () => {
+// The absolute-path refusal itself is proven on every platform by the POSIX
+// case above, which `resolve` treats as absolute on Windows too. This test
+// covers the drive-lettered spelling, and that spelling means two different
+// things: an absolute path on Windows, and an ordinary relative filename on
+// Linux, where `\` is a legal character in a name. Asserting a refusal on
+// both was asserting a falsehood on one, and it was the only confine test
+// that failed on the Linux CI leg.
+test('confineToRepoRoot: a drive-lettered path is refused on Windows and is an ordinary relative name elsewhere', () => {
   const root = makeRepoRoot();
   const result = confineToRepoRoot(root, 'C:\\Windows\\System32\\config\\SAM');
-  assert.strictEqual(result, null);
+  if (process.platform === 'win32') {
+    assert.strictEqual(result, null);
+    return;
+  }
+  assert.notStrictEqual(result, null, 'a backslash name is legal on POSIX and resolves inside the root');
+  assert.ok(result !== null && result.startsWith(root), `expected a path under ${root}, got ${String(result)}`);
 });
 
 test('confineToRepoRoot: a ../-traversal path resolving outside repoRoot returns null', () => {

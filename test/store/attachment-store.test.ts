@@ -142,12 +142,24 @@ test('a refused data URL writes nothing and reports why', async () => {
 });
 
 test('two spellings of one artifact directory share one attachment directory', () => {
-  // Same property `canonicalPathKey` gives every other store: a trailing
-  // separator or the wrong slash must not split one session's attachments
-  // across two folders.
-  const a = attachmentDirFor('C:\\illum-attachment-tests\\artifacts');
-  const b = attachmentDirFor('C:\\illum-attachment-tests\\artifacts\\');
-  const c = attachmentDirFor('C:/illum-attachment-tests/artifacts');
-  assert.strictEqual(a, b);
-  assert.strictEqual(a, c);
+  // Same property `canonicalPathKey` gives every other store: two spellings
+  // of ONE directory must not split a session's attachments across two
+  // folders.
+  //
+  // Which spellings denote one directory is platform-specific, and the
+  // original inputs here were Windows-only: on Linux a backslash is an
+  // ordinary filename character, so `C:\x\artifacts` and `C:/x/artifacts`
+  // are genuinely two different relative paths and this test was asserting
+  // something false. The trailing separator holds everywhere; the slash
+  // direction is a Windows property; the case-insensitivity is the one
+  // `test/daemon/state-dir.test.ts` deliberately pins on the Linux leg too.
+  const isWin = process.platform === 'win32';
+  const base = isWin ? String.raw`C:\illum-attachment-tests\artifacts` : '/illum-attachment-tests/artifacts';
+  const withTrailingSeparator = isWin ? `${base}\\` : `${base}/`;
+  const otherSpelling = isWin
+    ? 'C:/illum-attachment-tests/artifacts'
+    : '/illum-attachment-tests/Artifacts';
+
+  assert.strictEqual(attachmentDirFor(base), attachmentDirFor(withTrailingSeparator));
+  assert.strictEqual(attachmentDirFor(base), attachmentDirFor(otherSpelling));
 });

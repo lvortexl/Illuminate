@@ -92,9 +92,19 @@ test('parseAnchor: a Windows-style backslash path is normalized to forward slash
   assert.strictEqual(result.anchor.path, 'src/main/engine.ts');
 });
 
+// "Absolute" is a platform-specific notion, and this test is about the
+// containment property, not about one operating system's spelling of it. A
+// drive-lettered path is absolute on Windows; on Linux `\` is a legal
+// character in a filename, so `C:\Windows\...` is an ordinary relative name
+// that parseAnchor correctly accepts -- which is exactly why hard-coding the
+// Windows spelling made this the one anchor test that failed on the Linux CI
+// leg. Asserting the running platform's own absolute form keeps the property
+// proven on both.
+const ABSOLUTE_PATH = process.platform === 'win32' ? String.raw`C:\Windows\System32\config\SAM` : '/etc/passwd';
+
 test('parseAnchor: an absolute path input is a parse failure', () => {
   const root = makeRepoRoot();
-  const result = parseAnchor(root, { path: 'C:\\Windows\\System32\\config\\SAM', anchorHash: HASH });
+  const result = parseAnchor(root, { path: ABSOLUTE_PATH, anchorHash: HASH });
   assert.strictEqual(result.ok, false);
 });
 
