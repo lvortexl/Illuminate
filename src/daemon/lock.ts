@@ -1,5 +1,5 @@
 import { open, readFile, unlink, mkdir } from 'node:fs/promises';
-import { unlinkSync } from 'node:fs';
+import { unlinkSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
@@ -68,6 +68,13 @@ export async function cleanupLock(lockPath: string): Promise<void> {
 export type KillFn = (pid: number, signal: 0) => void;
 
 /**
+ * Reads a pid's raw `/proc/<pid>/stat` line, or `null` where no such file
+ * can be read. Injected for the same reason `KillFn` is: the zombie branch
+ * has to be provable on the platforms that cannot manufacture a zombie.
+ */
+export type ProcStatReader = (pid: number) => string | null;
+
+/**
  * Cross-platform pid liveness check via signal 0 — documented by Node as
  * portable, including on win32 (Node's signal-emulation layer implements
  * existence-check semantics for it even though Windows has no real signal
@@ -78,17 +85,66 @@ export type KillFn = (pid: number, signal: 0) => void;
  * is dead, rather than risk a false reclaim (RESEARCH.md §2.3, decision A2).
  * Note this alone does not close the pid-recycling gap — that is the
  * two-factor health-token cross-check implemented downstream (§2.4).
+ *
+ * Signal 0 alone answers a narrower question than the name of this function
+ * asks: it proves only that the pid still occupies a row in the process
+ * table. On POSIX a process that has already exited keeps that row until
+ * its parent collects the exit status — the zombie state — and signal 0
+ * succeeds on a zombie. That gap is not theoretical: a daemon that had shut
+ * down cleanly was read as one that "did not exit after a graceful shutdown
+ * request and SIGTERM", because its parent was blocked inside a synchronous
+ * spawn and could not reap it. Windows has no zombie state, which is why
+ * this only ever failed on the Linux CI leg.
+ *
+ * So a successful signal 0 is followed by one `/proc/<pid>/stat` read.
+ * Deliberately not gated on `process.platform`: the reader reports `null`
+ * wherever there is no such file (Windows, macOS), and a `null` reading
+ * leaves the answer exactly as signal 0 gave it — byte-for-byte today's
+ * behaviour on every platform without a procfs. Reading a file is not
+ * shelling out; this function still spawns nothing.
  */
-export function isPidAlive(pid: number, killFn: KillFn = process.kill.bind(process)): boolean {
+export function isPidAlive(
+  pid: number,
+  killFn: KillFn = process.kill.bind(process),
+  readStat: ProcStatReader = readProcStat,
+): boolean {
   try {
     killFn(pid, 0);
-    return true;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'ESRCH') return false;
     if (code === 'EPERM') return true;
     throw err;
   }
+  return !isZombie(pid, readStat);
+}
+
+/**
+ * Reads a pid's raw procfs status line, or `null` where there is none to
+ * read — a kernel without procfs, a pid that vanished between the signal
+ * and the read, or any permission problem. Every failure reads the same:
+ * "no opinion", never "dead".
+ */
+function readProcStat(pid: number): string | null {
+  try {
+    return readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The state character is the field after the executable name, and that name
+ * is wrapped in parentheses precisely because it may itself contain spaces
+ * and parentheses. Splitting on whitespace and taking the third field is
+ * the classic way to get this wrong; the state is the first token after the
+ * LAST `)`.
+ */
+function isZombie(pid: number, readStat: ProcStatReader): boolean {
+  const stat = readStat(pid);
+  if (stat === null) return false;
+  const afterName = stat.slice(stat.lastIndexOf(')') + 1).trim();
+  return afterName.split(/\s+/)[0] === 'Z';
 }
 
 /**

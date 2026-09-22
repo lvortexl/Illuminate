@@ -120,6 +120,73 @@ test('isPidAlive treats an injected EPERM as alive (fail toward not reclaiming)'
   assert.strictEqual(isPidAlive(999999, fakeKillFn), true);
 });
 
+// A zombie is a process that has already exited and whose exit status has
+// not yet been collected by its parent. It still occupies a row in the
+// process table, so `kill(pid, 0)` succeeds on it -- which is exactly how a
+// daemon that HAD exited was read as one that "did not exit after a
+// graceful shutdown request and SIGTERM", failing two CLI tests on the
+// Linux CI leg and none on Windows, which has no such state.
+//
+// The reader is injected here for the same reason `killFn` is: the
+// zombie branch must be provable on every platform this suite runs on, not
+// only on the one that can manufacture the state.
+test('isPidAlive reports a zombie as dead even though signal 0 succeeds on it', () => {
+  const aliveKillFn = (): void => {
+    // signal 0 succeeds: the pid IS in the process table.
+  };
+  const zombieStat = (): string => '4242 (illuminate-daem) Z 1 4242 4242 0 -1 4194560 0 0 0 0 0 0';
+  assert.strictEqual(isPidAlive(4242, aliveKillFn, zombieStat), false);
+});
+
+test('isPidAlive reports a genuinely running process as alive', () => {
+  const aliveKillFn = (): void => {};
+  const runningStat = (): string => '4242 (illuminate-daem) S 1 4242 4242 0 -1 4194560 0 0 0 0 0 0';
+  assert.strictEqual(isPidAlive(4242, aliveKillFn, runningStat), true);
+});
+
+// A process name may itself contain spaces and parentheses, so the state
+// character is the first token after the LAST ')', never the third
+// whitespace-separated field.
+test('isPidAlive finds the state character even when the process name contains parentheses', () => {
+  const aliveKillFn = (): void => {};
+  const awkwardStat = (): string => '4242 (weird (name) Z) Z 1 4242 4242 0 -1 4194560 0 0';
+  assert.strictEqual(isPidAlive(4242, aliveKillFn, awkwardStat), false);
+});
+
+// Where there is no /proc to read -- Windows and macOS -- the reader
+// reports nothing and the answer is whatever signal 0 already said, which
+// is byte-for-byte today's behaviour on those platforms.
+test('isPidAlive falls back to the signal-0 answer when no process state is readable', () => {
+  const aliveKillFn = (): void => {};
+  const noProcFs = (): null => null;
+  assert.strictEqual(isPidAlive(4242, aliveKillFn, noProcFs), true);
+});
+
+test('isPidAlive reports a REAL zombie as dead (linux only, no injection)', { skip: process.platform !== 'linux' ? 'needs /proc and POSIX zombie semantics' : false }, () => {
+  // The production reproduction, manufactured honestly: a child that exits
+  // while this process is blocked inside spawnSync cannot be reaped, because
+  // reaping needs an event-loop turn this process is not taking. That is
+  // precisely the shape of the CLI test that exposed this -- a test process
+  // blocked in spawnSync while the daemon it parented was asked to die.
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 150)'], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+  const childPid = child.pid;
+  assert.ok(childPid, 'child process must have a pid');
+
+  // Block this process's event loop past the child's exit, so nothing can
+  // reap it.
+  spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 900)']);
+
+  const stat = readFileSync(`/proc/${String(childPid)}/stat`, 'utf8');
+  const state = stat.slice(stat.lastIndexOf(')') + 1).trim().split(/\s+/)[0];
+  assert.strictEqual(state, 'Z', `expected a zombie to observe, got state ${String(state)}`);
+
+  assert.strictEqual(isPidAlive(childPid), false);
+});
+
 test('lock.ts never shells out to lsof, ps, tasklist, or wmic', () => {
   // Automated assertion over the actual source, not a manual promise.
   const source = readFileSync(LOCK_TS_PATH, 'utf8');
